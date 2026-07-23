@@ -273,7 +273,7 @@ const SUPABASE_URL = "https://xwfiobqzgqrazwlklrcb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_fjn_wPmhcJ-lggDB-9FDTQ_bKFZLc7j";
 
 /* ======================= STATE ======================= */
-let supabase = null;
+let supabaseClient = null;
 let stagedRows = []; // rows parsed from the uploaded file, pending save
 let savedRows = [];  // rows loaded from the database
 
@@ -304,8 +304,8 @@ document.getElementById('connectBtn').addEventListener('click', async ()=>{
     return;
   }
   try{
-    supabase = window.supabase.createClient(url, key);
-    const { error } = await supabase.from(TABLE_NAME).select('id', { count: 'exact', head:true });
+    supabaseClient = window.supabase.createClient(url, key);
+    const { error } = await supabaseClient.from(TABLE_NAME).select('id', { count: 'exact', head:true });
     if(error) throw error;
     setConnected(true);
     msg.innerHTML = `<div class="msg ok">Connected. Table "${TABLE_NAME}" is reachable.</div>`;
@@ -321,8 +321,8 @@ async function autoConnect(){
   document.getElementById('sbKey').value = SUPABASE_ANON_KEY;
   const msg = document.getElementById('settingsMsg');
   try{
-    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { error } = await supabase.from(TABLE_NAME).select('id', { count: 'exact', head:true });
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { error } = await supabaseClient.from(TABLE_NAME).select('id', { count: 'exact', head:true });
     if(error) throw error;
     setConnected(true);
     msg.innerHTML = `<div class="msg ok">Connected. Table "${TABLE_NAME}" is reachable.</div>`;
@@ -454,7 +454,7 @@ document.getElementById('saveAllBtn').addEventListener('click', saveStagedRows);
 
 async function saveStagedRows(){
   const saveMsg = document.getElementById('saveMsg');
-  if(!supabase){
+  if(!supabaseClient){
     saveMsg.innerHTML = `<div class="msg err">Not connected to Supabase. Go to "Connection Settings" first.</div>`;
     return;
   }
@@ -483,7 +483,7 @@ async function saveStagedRows(){
   }));
   try{
     // upsert on sales_document so re-uploading the same order updates it rather than duplicating
-    const { error } = await supabase.from(TABLE_NAME).upsert(payload, { onConflict: 'sales_document' });
+    const { error } = await supabaseClient.from(TABLE_NAME).upsert(payload, { onConflict: 'sales_document' });
     if(error) throw error;
     saveMsg.innerHTML = `<div class="msg ok">Saved ${payload.length} row(s) to the database.</div>`;
     stagedRows = [];
@@ -502,7 +502,7 @@ async function saveStagedRows(){
 /* ======================= SAVED RECORDS TABLE (from DB, editable) ======================= */
 async function loadSavedRows(){
   const savedMsg = document.getElementById('savedMsg');
-  if(!supabase){
+  if(!supabaseClient){
     savedMsg.innerHTML = `<div class="msg info">Connect to Supabase in "Connection Settings" to view saved records.</div>`;
     savedRows = [];
     renderSavedTable();
@@ -510,7 +510,7 @@ async function loadSavedRows(){
   }
   savedMsg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
   try{
-    const { data, error } = await supabase.from(TABLE_NAME).select('*').order('created_on', {ascending:false});
+    const { data, error } = await supabaseClient.from(TABLE_NAME).select('*').order('created_on', {ascending:false});
     if(error) throw error;
     savedRows = data || [];
     savedMsg.innerHTML = '';
@@ -570,7 +570,7 @@ function renderSavedTable(){
 }
 
 async function updateSavedRow(id, tr){
-  if(!supabase) return;
+  if(!supabaseClient) return;
   const btn = tr.querySelector('.sv-save');
   btn.disabled = true;
   btn.textContent = 'Saving...';
@@ -581,7 +581,7 @@ async function updateSavedRow(id, tr){
     received_date: tr.querySelector('.sv-received').value || null
   };
   try{
-    const { error } = await supabase.from(TABLE_NAME).update(update).eq('id', id);
+    const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', id);
     if(error) throw error;
     const row = savedRows.find(r=>String(r.id)===String(id));
     if(row) Object.assign(row, update);
@@ -623,7 +623,7 @@ function statusBadge(status){
 /* ======================= SUMMARY TAB ======================= */
 async function loadSummary(){
   const msg = document.getElementById('summaryMsg');
-  if(!supabase){
+  if(!supabaseClient){
     msg.innerHTML = `<div class="msg info">Connect to Supabase in "Connection Settings" to view the summary.</div>`;
     document.getElementById('summaryCards').innerHTML = '';
     document.querySelector('#summaryTable tbody').innerHTML = '';
@@ -631,7 +631,7 @@ async function loadSummary(){
   }
   msg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
   try{
-    const { data, error } = await supabase.from(TABLE_NAME).select('*');
+    const { data, error } = await supabaseClient.from(TABLE_NAME).select('*');
     if(error) throw error;
     msg.innerHTML = '';
     renderSummary(data || []);
