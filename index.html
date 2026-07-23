@@ -223,6 +223,24 @@
       <div id="updLookupMsg"></div>
     </div>
 
+    <div class="panel">
+      <h2>Bulk update — paste from Excel</h2>
+      <div class="desc">Copy rows straight from Excel (header row + data rows) using <b>Sales document</b> as the match key, then paste below. Columns expected: Sales document, P.O REMARKS, reason rejection, REMARKS, received date. Multiple rows are supported.</div>
+      <textarea id="bulkPasteInput" rows="6" placeholder="Sales document	P.O REMARKS	reason rejection	REMARKS	received date
+4810333654	DELIVERED		okay	3/10/2026" style="font-family:'IBM Plex Mono',monospace;font-size:12px;"></textarea>
+      <div style="margin-top:10px;display:flex;gap:10px;">
+        <button class="btn secondary" id="bulkParseBtn">Parse pasted data</button>
+        <button class="btn" id="bulkSaveBtn" disabled>Update all matching records</button>
+      </div>
+      <div id="bulkMsg" style="margin-top:12px;"></div>
+      <div class="table-wrap hidden" id="bulkPreviewWrap" style="margin-top:14px;">
+        <table id="bulkPreviewTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
     <div class="panel hidden" id="updFormPanel">
       <div class="toolbar">
         <h2 style="margin:0;">Edit record</h2>
@@ -860,6 +878,171 @@ document.getElementById('updSaveBtn').addEventListener('click', async ()=>{
     btn.disabled = false;
     btn.textContent = 'Save changes';
   }
+});
+
+/* ======================= BULK UPDATE — PASTE FROM EXCEL ======================= */
+// Column aliases accepted in a pasted header row (normalized: lowercase, collapsed whitespace, punctuation-insensitive)
+const BULK_HEADER_ALIASES = {
+  "sales document": "sales_document",
+  "po remarks": "po_remarks",
+  "p.o remarks": "po_remarks",
+  "reason rejection": "reason_rejection",
+  "reason for rejection": "reason_rejection",
+  "remarks": "remarks",
+  "received date": "received_date"
+};
+// Fallback column order if the pasted text has no recognizable header row.
+const BULK_DEFAULT_ORDER = ["sales_document","po_remarks","reason_rejection","remarks","received_date"];
+let bulkParsedRows = [];
+
+function normalizeBulkHeader(s){
+  return String(s).replace(/\s+/g,' ').trim().toLowerCase().replace(/\./g,'');
+}
+
+// Accepts M/D/YYYY, D-M-YYYY, YYYY-MM-DD, or an Excel-pasted real Date-like string.
+// Ambiguous slash dates (e.g. 3/10/2026) are read as Month/Day/Year to match Excel's US default.
+function parseBulkDate(raw){
+  const s = String(raw||'').trim();
+  if(!s) return { iso: null, ok: true }; // blank is valid (means "clear this field")
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if(m){
+    const [_, y, mo, d] = m;
+    return { iso: `${y}-${pad2(+mo)}-${pad2(+d)}`, ok: true };
+  }
+  m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){
+    let [_, mo, d, y] = m;
+    if(y.length===2) y = (+y < 50 ? '20' : '19') + y;
+    const mn = +mo, dn = +d;
+    if(mn>=1 && mn<=12 && dn>=1 && dn<=31){
+      return { iso: `${y}-${pad2(mn)}-${pad2(dn)}`, ok: true };
+    }
+  }
+  const dt = new Date(s);
+  if(!isNaN(dt.getTime())) return { iso: toISODate(dt), ok: true };
+  return { iso: null, ok: false };
+}
+
+function parseBulkPaste(){
+  const msg = document.getElementById('bulkMsg');
+  const saveBtn = document.getElementById('bulkSaveBtn');
+  const wrap = document.getElementById('bulkPreviewWrap');
+  const raw = document.getElementById('bulkPasteInput').value;
+  const lines = raw.split(/\r?\n/).filter(l=>l.trim().length>0);
+  bulkParsedRows = [];
+  saveBtn.disabled = true;
+  wrap.classList.add('hidden');
+
+  if(!lines.length){
+    msg.innerHTML = `<div class="msg err">Paste some rows first.</div>`;
+    return;
+  }
+
+  // Detect a header row by checking if its cells match our known aliases.
+  const firstCells = lines[0].split('\t').map(normalizeBulkHeader);
+  const hasHeader = firstCells.some(c => BULK_HEADER_ALIASES[c]);
+  let colOrder;
+  let dataLines;
+  if(hasHeader){
+    colOrder = firstCells.map(c => BULK_HEADER_ALIASES[c] || null);
+    dataLines = lines.slice(1);
+  } else {
+    colOrder = BULK_DEFAULT_ORDER;
+    dataLines = lines;
+  }
+
+  if(!colOrder.includes('sales_document')){
+    msg.innerHTML = `<div class="msg err">Couldn't find a "Sales document" column. Make sure it's included in the pasted header row (or omit the header and use the default column order: Sales document, P.O REMARKS, reason rejection, REMARKS, received date).</div>`;
+    return;
+  }
+
+  let errCount = 0;
+  bulkParsedRows = dataLines.map(line=>{
+    const cells = line.split('\t');
+    const obj = { sales_document:'', po_remarks:'', reason_rejection:'', remarks:'', received_date_raw:'' };
+    colOrder.forEach((col, i)=>{
+      if(!col) return;
+      const val = (cells[i]===undefined ? '' : cells[i]).trim();
+      if(col==='received_date') obj.received_date_raw = val;
+      else obj[col] = val;
+    });
+    const dateResult = parseBulkDate(obj.received_date_raw);
+    obj.received_date = dateResult.iso;
+    obj.dateOk = dateResult.ok;
+    obj.salesDocOk = obj.sales_document.length > 0;
+    obj.status = (!obj.salesDocOk) ? 'Missing Sales document' : (!obj.dateOk ? 'Unrecognized date' : 'Ready');
+    obj.valid = obj.salesDocOk && obj.dateOk;
+    if(!obj.valid) errCount++;
+    return obj;
+  });
+
+  renderBulkPreview();
+  wrap.classList.remove('hidden');
+  const readyCount = bulkParsedRows.filter(r=>r.valid).length;
+  saveBtn.disabled = readyCount === 0;
+  msg.innerHTML = `<div class="msg ${errCount ? 'info' : 'ok'}">Parsed ${bulkParsedRows.length} row(s): ${readyCount} ready to update${errCount ? `, ${errCount} with issues (see table)` : ''}.</div>`;
+}
+
+function renderBulkPreview(){
+  const thead = document.querySelector('#bulkPreviewTable thead');
+  const tbody = document.querySelector('#bulkPreviewTable tbody');
+  thead.innerHTML = `<tr><th>Sales document</th><th>P.O Remarks</th><th>Reason for Rejection</th><th>Remarks</th><th>Received Date</th><th>Status</th></tr>`;
+  tbody.innerHTML = bulkParsedRows.map((r,i)=>{
+    const statusCls = r.valid ? 'ok' : 'err';
+    return `<tr data-bulk-idx="${i}">
+      <td>${escapeHtml(r.sales_document)}</td>
+      <td>${escapeHtml(r.po_remarks)}</td>
+      <td>${escapeHtml(r.reason_rejection)}</td>
+      <td>${escapeHtml(r.remarks)}</td>
+      <td>${escapeHtml(r.received_date || r.received_date_raw)}</td>
+      <td class="bulk-status"><span class="msg ${statusCls}" style="display:inline-block;padding:2px 9px;margin:0;">${escapeHtml(r.status)}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+document.getElementById('bulkParseBtn').addEventListener('click', parseBulkPaste);
+
+document.getElementById('bulkSaveBtn').addEventListener('click', async ()=>{
+  const msg = document.getElementById('bulkMsg');
+  if(!supabaseClient){
+    msg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
+    return;
+  }
+  const btn = document.getElementById('bulkSaveBtn');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.innerHTML = `<span class="spinner"></span> Updating...`;
+
+  let updated = 0, notFound = 0, failed = 0, skipped = 0;
+  for(let i=0; i<bulkParsedRows.length; i++){
+    const r = bulkParsedRows[i];
+    const statusCell = document.querySelector(`#bulkPreviewTable tr[data-bulk-idx="${i}"] .bulk-status`);
+    if(!r.valid){ skipped++; continue; }
+    const update = {
+      po_remarks: r.po_remarks === '' ? null : r.po_remarks,
+      reason_rejection: r.reason_rejection === '' ? null : r.reason_rejection,
+      remarks: r.remarks === '' ? null : r.remarks,
+      received_date: r.received_date
+    };
+    try{
+      const { data, error } = await supabaseClient.from(TABLE_NAME).update(update).eq('sales_document', r.sales_document).select('id');
+      if(error) throw error;
+      if(!data || !data.length){
+        notFound++;
+        if(statusCell) statusCell.innerHTML = `<span class="msg err" style="display:inline-block;padding:2px 9px;margin:0;">No matching record</span>`;
+      } else {
+        updated++;
+        if(statusCell) statusCell.innerHTML = `<span class="msg ok" style="display:inline-block;padding:2px 9px;margin:0;">Updated</span>`;
+      }
+    }catch(err){
+      failed++;
+      if(statusCell) statusCell.innerHTML = `<span class="msg err" style="display:inline-block;padding:2px 9px;margin:0;">Failed: ${escapeHtml(err.message||String(err))}</span>`;
+    }
+  }
+
+  btn.disabled = false;
+  btn.textContent = originalLabel;
+  msg.innerHTML = `<div class="msg ${(notFound+failed)>0 ? 'info':'ok'}">Done. Updated ${updated}${notFound?`, ${notFound} not found`:''}${failed?`, ${failed} failed`:''}${skipped?`, ${skipped} skipped (see table)`:''}.</div>`;
 });
 
 /* ======================= STATUS LOGIC ======================= */
