@@ -62,6 +62,15 @@
   html[data-theme="dark"] .pill-btn.active{color:#fff;}
   html[data-theme="dark"] button.btn.secondary{color:var(--text);}
   html[data-theme="dark"] button.btn.secondary:hover{background:var(--pill-bg);}
+  /* Card values default to --navy, which is nearly invisible against the dark background.
+     Force a light, readable color in dark mode for every card that isn't already using
+     an accent color (green/amber/red already contrast fine; purple needs lightening too). */
+  html[data-theme="dark"] .card .value{color:var(--text);}
+  html[data-theme="dark"] .card.accent-purple .value{color:#B49BE8;}
+  html[data-theme="dark"] .drop .fname{color:var(--text);}
+  html[data-theme="dark"] .pill-btn{color:var(--text);}
+  html[data-theme="dark"] th.sortable:hover{color:#fff;}
+  html[data-theme="dark"] thead th.input-col{color:#7DDBD9;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;transition:background .15s,color .15s;}
   .theme-toggle{display:flex;align-items:center;gap:8px;background:none;border:1px solid rgba(255,255,255,0.25);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter';}
@@ -76,6 +85,16 @@
   .pw-modal input:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal);}
   .pw-err{font-size:12px;color:var(--red);margin-bottom:10px;}
   .pw-actions{display:flex;justify-content:flex-end;gap:10px;}
+
+  .ra-mode-btns{display:flex;gap:8px;margin-bottom:4px;}
+  .ra-mode-btn{flex:1;padding:10px 8px;border:1.5px solid var(--line);border-radius:8px;background:var(--panel);color:var(--text);font-family:'Inter';font-weight:600;font-size:12.5px;cursor:pointer;transition:border-color .15s,background .15s,color .15s;}
+  .ra-mode-btn:hover{border-color:var(--teal);}
+  .ra-mode-btn.active{border-color:var(--teal);background:var(--teal-light);color:#0C6F71;}
+  html[data-theme="dark"] .ra-mode-btn.active{color:#7DDBD9;}
+  .records-mode-pill{font-size:11px;font-weight:700;padding:4px 11px;border-radius:20px;letter-spacing:0.3px;text-transform:uppercase;}
+  .records-mode-pill.view{background:var(--pill-bg);color:var(--slate);}
+  .records-mode-pill.edit{background:rgba(15,139,141,0.14);color:var(--teal);}
+  html[data-theme="dark"] .records-mode-pill.edit{color:#7DDBD9;}
   header{background:var(--navy);color:#fff;padding:22px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
   header .brand{display:flex;align-items:center;gap:14px;}
   header .brand .mark{width:34px;height:34px;border-radius:8px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;font-size:16px;}
@@ -200,6 +219,26 @@
   </div>
 </div>
 
+<div id="recordsAccessOverlay" class="pw-overlay hidden">
+  <div class="pw-modal">
+    <h3>All Records access</h3>
+    <p>Choose how you'd like to open this tab.</p>
+    <div class="ra-mode-btns">
+      <button type="button" class="ra-mode-btn active" id="raViewBtn" data-mode="view">👁 View mode</button>
+      <button type="button" class="ra-mode-btn" id="raEditBtn" data-mode="edit">✎ Edit mode</button>
+    </div>
+    <div id="raPwWrap" class="hidden">
+      <label style="margin-top:12px;">Password</label>
+      <input type="password" id="raPwInput" placeholder="Password" autocomplete="off">
+      <div id="raPwErr" class="pw-err hidden">Incorrect password. Opening in view mode instead.</div>
+    </div>
+    <div class="pw-actions">
+      <button type="button" class="btn secondary" id="raCancelBtn">Cancel</button>
+      <button type="button" class="btn" id="raContinueBtn">Continue</button>
+    </div>
+  </div>
+</div>
+
 <nav class="tabs">
   <button class="active" data-tab="summary">Summary Dashboard</button>
   <button data-tab="analytics">Analytics &amp; Reports</button>
@@ -255,6 +294,10 @@
         <div class="left">
           <h2 style="margin:0;">All saved records</h2>
           <span class="count-pill" id="savedCount">0 rows</span>
+          <span class="records-mode-pill view" id="recordsModePill">👁 View mode</span>
+        </div>
+        <div class="left">
+          <button class="pill-btn hidden" id="recordsSwitchEditBtn" type="button">Switch to edit mode</button>
         </div>
       </div>
       <div class="desc">Select a Delivery Date range (31 days max) and click Search. Records only load once both dates are filled in.</div>
@@ -689,6 +732,77 @@ function activateTab(btn){
   if(btn.dataset.tab==='summary') loadSummary();
 }
 
+/* ======================= ALL RECORDS: view/edit mode chooser ======================= */
+const RECORDS_PASSWORD = 'jaja'; // case-insensitive check below
+let recordsEditUnlocked = false; // reset every time the tab is re-entered
+let recordsTabBtn = null;
+let raSelectedMode = 'view';
+
+function updateRecordsModeUI(){
+  const pill = document.getElementById('recordsModePill');
+  const switchBtn = document.getElementById('recordsSwitchEditBtn');
+  if(recordsEditUnlocked){
+    pill.textContent = '✎ Edit mode';
+    pill.className = 'records-mode-pill edit';
+    switchBtn.classList.add('hidden');
+  } else {
+    pill.textContent = '👁 View mode';
+    pill.className = 'records-mode-pill view';
+    switchBtn.classList.remove('hidden');
+  }
+  renderSavedTableBody();
+}
+
+function openRecordsAccessModal(btn, forceMode){
+  recordsTabBtn = btn || recordsTabBtn;
+  raSelectedMode = forceMode || 'view';
+  document.querySelectorAll('.ra-mode-btn').forEach(b=>b.classList.toggle('active', b.dataset.mode===raSelectedMode));
+  document.getElementById('raPwWrap').classList.toggle('hidden', raSelectedMode!=='edit');
+  document.getElementById('raPwInput').value = '';
+  document.getElementById('raPwErr').classList.add('hidden');
+  document.getElementById('recordsAccessOverlay').classList.remove('hidden');
+  if(raSelectedMode==='edit') setTimeout(()=>document.getElementById('raPwInput').focus(), 30);
+}
+function closeRecordsAccessModal(){
+  document.getElementById('recordsAccessOverlay').classList.add('hidden');
+}
+function confirmRecordsAccess(){
+  if(raSelectedMode==='view'){
+    recordsEditUnlocked = false;
+    closeRecordsAccessModal();
+    if(recordsTabBtn) activateTab(recordsTabBtn);
+    updateRecordsModeUI();
+    return;
+  }
+  // edit mode: require the JAJA / jaja password
+  const val = document.getElementById('raPwInput').value || '';
+  if(val.toLowerCase() === RECORDS_PASSWORD){
+    recordsEditUnlocked = true;
+    closeRecordsAccessModal();
+    if(recordsTabBtn) activateTab(recordsTabBtn);
+    updateRecordsModeUI();
+  } else {
+    document.getElementById('raPwErr').classList.remove('hidden');
+    const input = document.getElementById('raPwInput');
+    input.value = '';
+    input.focus();
+  }
+}
+document.querySelectorAll('.ra-mode-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    raSelectedMode = b.dataset.mode;
+    document.querySelectorAll('.ra-mode-btn').forEach(x=>x.classList.toggle('active', x===b));
+    document.getElementById('raPwWrap').classList.toggle('hidden', raSelectedMode!=='edit');
+    document.getElementById('raPwErr').classList.add('hidden');
+    if(raSelectedMode==='edit') setTimeout(()=>document.getElementById('raPwInput').focus(), 30);
+  });
+});
+document.getElementById('raContinueBtn').addEventListener('click', confirmRecordsAccess);
+document.getElementById('raCancelBtn').addEventListener('click', closeRecordsAccessModal);
+document.getElementById('raPwInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') confirmRecordsAccess(); });
+document.getElementById('recordsAccessOverlay').addEventListener('click', (e)=>{ if(e.target.id==='recordsAccessOverlay') closeRecordsAccessModal(); });
+document.getElementById('recordsSwitchEditBtn').addEventListener('click', ()=>openRecordsAccessModal(recordsTabBtn, 'edit'));
+
 function openPwModal(btn){
   pendingTabBtn = btn;
   document.getElementById('pwTabName').textContent = TAB_LABELS[btn.dataset.tab] || 'this tab';
@@ -722,6 +836,11 @@ document.getElementById('pwOverlay').addEventListener('click', (e)=>{ if(e.targe
 
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
+    if(btn.dataset.tab === 'records'){
+      recordsEditUnlocked = false; // always re-prompt on (re)entering the tab
+      openRecordsAccessModal(btn, 'view');
+      return;
+    }
     if(btn.dataset.protected === '1' && !protectedUnlocked){
       openPwModal(btn);
       return;
@@ -1123,8 +1242,20 @@ function renderSavedTableBody(){
       if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null){ val = fmtPeso(val); return `<td${cls}>${val}</td>`; }
       return `<td${cls}>${escapeHtml(val==null?'':String(val))}</td>`;
     }).join('');
-    const remarksOptions = buildRemarksOptions(row.po_remarks);
     const status = computeStatus(row);
+    if(!recordsEditUnlocked){
+      // View-only mode: plain text, no inputs and no Update control.
+      return `<tr data-id="${row.id}">
+        ${cells}
+        <td>${escapeHtml(row.po_remarks||'')}</td>
+        <td>${escapeHtml(row.reason_rejection||'')}</td>
+        <td>${escapeHtml(row.remarks||'')}</td>
+        <td>${escapeHtml(row.received_date||'')}</td>
+        <td>${statusBadge(status)}</td>
+        <td></td>
+      </tr>`;
+    }
+    const remarksOptions = buildRemarksOptions(row.po_remarks);
     return `<tr data-id="${row.id}">
       ${cells}
       <td><select class="sv-po">${remarksOptions}</select></td>
@@ -1136,10 +1267,13 @@ function renderSavedTableBody(){
     </tr>`;
   }).join('');
 
-  tbody.querySelectorAll('tr').forEach(tr=>{
-    const id = tr.dataset.id;
-    tr.querySelector('.sv-save').addEventListener('click', ()=>updateSavedRow(id, tr));
-  });
+  if(recordsEditUnlocked){
+    tbody.querySelectorAll('tr').forEach(tr=>{
+      const id = tr.dataset.id;
+      const saveBtn = tr.querySelector('.sv-save');
+      if(saveBtn) saveBtn.addEventListener('click', ()=>updateSavedRow(id, tr));
+    });
+  }
   syncTableTopScroll('savedTable');
 }
 
