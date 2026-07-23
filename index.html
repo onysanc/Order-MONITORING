@@ -184,7 +184,7 @@
         </div>
         <div>
           <label>Search text</label>
-          <input type="text" id="searchSaved" placeholder="Customer, sales doc, group..." disabled>
+          <input type="text" id="searchSaved" placeholder="Customer, sales doc, group...">
         </div>
         <div>
           <button class="btn" id="applyDateFilterBtn">Search</button>
@@ -576,12 +576,10 @@ async function loadSavedRows(){
   const savedMsg = document.getElementById('savedMsg');
   const dateFrom = document.getElementById('filterDateFrom').value;
   const dateTo = document.getElementById('filterDateTo').value;
-  const searchInput = document.getElementById('searchSaved');
 
   if(!dateFrom || !dateTo){
     savedMsg.innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To", then click Search.</div>`;
     savedRows = [];
-    searchInput.disabled = true;
     renderSavedTable();
     return;
   }
@@ -605,7 +603,6 @@ async function loadSavedRows(){
   try{
     savedRows = await fetchAllRows('delivery_date', false, { gte:['delivery_date', dateFrom], lte:['delivery_date', dateTo] });
     savedMsg.innerHTML = `<div class="msg ok">Loaded ${savedRows.length} row(s) for ${dateFrom} to ${dateTo}.</div>`;
-    searchInput.disabled = false;
     renderSavedTable();
   }catch(err){
     savedMsg.innerHTML = `<div class="msg err">Could not load records: ${escapeHtml(err.message||String(err))}</div>`;
@@ -617,7 +614,6 @@ document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
   document.getElementById('filterDateFrom').value = '';
   document.getElementById('filterDateTo').value = '';
   document.getElementById('searchSaved').value = '';
-  document.getElementById('searchSaved').disabled = true;
   savedRows = [];
   document.getElementById('savedMsg').innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To", then click Search.</div>`;
   renderSavedTable();
