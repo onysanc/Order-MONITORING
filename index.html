@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Order Fulfillment Tracker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
@@ -104,6 +105,11 @@
   footer.note{font-size:12px;color:var(--slate);text-align:center;padding:20px;}
   .pill-btn{background:none;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;}
   .pill-btn:hover{background:#F0F3F8;}
+  .pill-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;}
+  th.sortable{cursor:pointer;user-select:none;}
+  th.sortable:hover{color:var(--navy);}
+  th.sortable .sort-arrow{opacity:0.5;margin-left:3px;}
+  th.sortable.sorted .sort-arrow{opacity:1;color:var(--teal);}
   .hidden{display:none !important;}
   .spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
   @keyframes spin{to{transform:rotate(360deg);}}
@@ -129,6 +135,7 @@
   <button data-tab="records">All Records</button>
   <button data-tab="update">Update Record</button>
   <button data-tab="summary">Summary Dashboard</button>
+  <button data-tab="analytics">Analytics &amp; Reports</button>
 </nav>
 
 <main>
@@ -349,6 +356,111 @@
     </div>
   </section>
 
+  <!-- ===================== ANALYTICS & REPORTS TAB ===================== -->
+  <section id="tab-analytics" class="tab hidden">
+    <div class="panel">
+      <h2>Report range</h2>
+      <div class="desc">Choose whether the analytics below use every saved record or a specific delivery-date window.</div>
+      <div style="display:flex;gap:8px;margin-bottom:14px;">
+        <button class="pill-btn active" id="anaRangeAllBtn" data-range="all">All records</button>
+        <button class="pill-btn" id="anaRangeCustomBtn" data-range="custom">Custom date range</button>
+      </div>
+      <div class="settings-grid hidden" id="anaCustomRangeRow" style="grid-template-columns:1fr 1fr auto;max-width:500px;margin-bottom:14px;">
+        <div>
+          <label>Delivery Date From</label>
+          <input type="date" id="anaDateFrom">
+        </div>
+        <div>
+          <label>Delivery Date To</label>
+          <input type="date" id="anaDateTo">
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn" id="anaLoadBtn">Load report</button>
+        <button class="btn secondary" id="anaExportBtn" disabled>Export to Excel</button>
+      </div>
+      <div id="anaMsg" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="summary-cards" id="anaCards"></div>
+
+    <div class="panel">
+      <h2>Order status by month</h2>
+      <div class="desc">Count of orders per delivery month, broken down by outcome.</div>
+      <div style="height:300px;"><canvas id="anaStatusChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <h2>On-time delivery rate trend</h2>
+      <div class="desc">Percentage of delivered orders that arrived on or before the Delivery Date, per month.</div>
+      <div style="height:260px;"><canvas id="anaTrendChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0;">Performance by AM Sales Name</h2>
+        <span class="count-pill" id="anaAmCount">0 reps</span>
+      </div>
+      <div class="desc">Click a column header to sort. On-Time Rate is calculated among delivered orders (On Time + Delayed).</div>
+      <div class="table-scroll-top" id="anaAmTableScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="anaAmTableWrap">
+        <table id="anaAmTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0;">Top customers by volume</h2>
+        <span class="count-pill" id="anaCustTopCount">0 shown</span>
+      </div>
+      <div class="table-scroll-top" id="anaCustTopScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="anaCustTopWrap">
+        <table id="anaCustTopTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0;">Customers with the most issues</h2>
+        <span class="count-pill" id="anaCustIssueCount">0 shown</span>
+      </div>
+      <div class="desc">Ranked by Cancelled + Delayed + Undelivered order count.</div>
+      <div class="table-scroll-top" id="anaCustIssueScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="anaCustIssueWrap">
+        <table id="anaCustIssueTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>P.O Remarks breakdown</h2>
+      <div class="desc">How often each P.O Remarks value appears across the loaded orders.</div>
+      <div style="height:260px;"><canvas id="anaRemarksChart"></canvas></div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0;">Top rejection / cancellation reasons</h2>
+        <span class="count-pill" id="anaReasonCount">0 reasons</span>
+      </div>
+      <div class="table-scroll-top" id="anaReasonScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="anaReasonWrap">
+        <table id="anaReasonTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0;">Average delay by customer group</h2>
+        <span class="count-pill" id="anaDelayCount">0 groups</span>
+      </div>
+      <div class="desc">Average days late (Received Date minus Delivery Date), counted only for orders that arrived late.</div>
+      <div class="table-scroll-top" id="anaDelayScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="anaDelayWrap">
+        <table id="anaDelayTable"><thead></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
   <footer class="note">
     Status logic — <b>Cancelled</b>: P.O Remarks = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Delivery Date. <b>Delivered But Delayed</b>: Received Date after Delivery Date. <b>Undelivered</b>: no Received Date and P.O Remarks = "Undelivered" (explicitly flagged). <b>Open Orders</b>: no Received Date and not flagged as Cancelled or Undelivered — regardless of whether the Delivery Date has passed. Adjust the <code>computeStatus()</code> function in the page source if your business rule differs.
   </footer>
@@ -422,6 +534,11 @@ initTableTopScroll('previewTable', 'previewTableScrollTop', 'previewTableWrap');
 initTableTopScroll('savedTable', 'savedTableScrollTop', 'savedTableWrap');
 initTableTopScroll('bulkPreviewTable', 'bulkPreviewTableScrollTop', 'bulkPreviewTableWrap');
 initTableTopScroll('summaryTable', 'summaryTableScrollTop', 'summaryTableWrap');
+initTableTopScroll('anaAmTable', 'anaAmTableScrollTop', 'anaAmTableWrap');
+initTableTopScroll('anaCustTopTable', 'anaCustTopScrollTop', 'anaCustTopWrap');
+initTableTopScroll('anaCustIssueTable', 'anaCustIssueScrollTop', 'anaCustIssueWrap');
+initTableTopScroll('anaReasonTable', 'anaReasonScrollTop', 'anaReasonWrap');
+initTableTopScroll('anaDelayTable', 'anaDelayScrollTop', 'anaDelayWrap');
 
 /* ======================= STATE ======================= */
 let supabaseClient = null;
@@ -437,6 +554,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
     if(btn.dataset.tab==='records') loadSavedRows();
     if(btn.dataset.tab==='summary') loadSummary();
+    if(btn.dataset.tab==='analytics' && !anaLoadedOnce){ anaLoadedOnce = true; loadAnalytics(); }
   });
 });
 
@@ -1305,6 +1423,402 @@ function renderSummary(rows){
     </tr>`;
   syncTableTopScroll('summaryTable');
 }
+
+/* ======================= ANALYTICS & REPORTS TAB ======================= */
+let anaRangeMode = 'all'; // 'all' | 'custom'
+let anaRows = [];
+let anaLastComputed = null; // cached aggregates, used by the exporter
+const anaCharts = {}; // canvasId -> Chart.js instance, destroyed/recreated on each report load
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+document.getElementById('anaRangeAllBtn').addEventListener('click', ()=>{
+  anaRangeMode = 'all';
+  document.getElementById('anaRangeAllBtn').classList.add('active');
+  document.getElementById('anaRangeCustomBtn').classList.remove('active');
+  document.getElementById('anaCustomRangeRow').classList.add('hidden');
+});
+document.getElementById('anaRangeCustomBtn').addEventListener('click', ()=>{
+  anaRangeMode = 'custom';
+  document.getElementById('anaRangeCustomBtn').classList.add('active');
+  document.getElementById('anaRangeAllBtn').classList.remove('active');
+  document.getElementById('anaCustomRangeRow').classList.remove('hidden');
+});
+document.getElementById('anaLoadBtn').addEventListener('click', loadAnalytics);
+
+async function loadAnalytics(){
+  const msg = document.getElementById('anaMsg');
+  if(!supabaseClient){
+    msg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
+    return;
+  }
+  let filters = null;
+  if(anaRangeMode === 'custom'){
+    const dateFrom = document.getElementById('anaDateFrom').value;
+    const dateTo = document.getElementById('anaDateTo').value;
+    if(!dateFrom || !dateTo){
+      msg.innerHTML = `<div class="msg err">Select both a "Delivery Date From" and "Delivery Date To" for a custom range, or switch to "All records".</div>`;
+      return;
+    }
+    if(dateFrom > dateTo){
+      msg.innerHTML = `<div class="msg err">"Delivery Date From" must be on or before "Delivery Date To".</div>`;
+      return;
+    }
+    filters = { gte:['delivery_date', dateFrom], lte:['delivery_date', dateTo] };
+  }
+  msg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Crunching the numbers...</div>`;
+  document.getElementById('anaExportBtn').disabled = true;
+  try{
+    anaRows = await fetchAllRows('delivery_date', true, filters);
+    const rangeLabel = anaRangeMode==='custom'
+      ? `${document.getElementById('anaDateFrom').value} to ${document.getElementById('anaDateTo').value}`
+      : 'all saved records';
+    msg.innerHTML = `<div class="msg ok">Report built from ${anaRows.length} order(s) — ${rangeLabel}.</div>`;
+    renderAnalytics(anaRows);
+    document.getElementById('anaExportBtn').disabled = anaRows.length === 0;
+  }catch(err){
+    msg.innerHTML = `<div class="msg err">Could not build report: ${escapeHtml(err.message||String(err))}</div>`;
+  }
+}
+
+/* ---- aggregate computations ---- */
+function anaMonthKey(dateStr){ return dateStr ? String(dateStr).slice(0,7) : null; }
+function anaMonthLabel(key){
+  const [y,m] = key.split('-');
+  return MONTH_ABBR[(+m)-1] + ' ' + y;
+}
+function anaDelayDays(row){
+  if(!row.delivery_date || !row.received_date) return null;
+  return Math.round((new Date(row.received_date) - new Date(row.delivery_date)) / 86400000);
+}
+
+function computeAnalyticsAggregates(rows){
+  const cards = { total:0, onTime:0, delayed:0, cancelled:0, undelivered:0, open:0, billed:0 };
+  const monthly = {}; // key -> {onTime,delayed,cancelled,undelivered,open}
+  const byAm = {};    // am name -> stats
+  const byCustomer = {}; // customer -> stats
+  const remarks = {}; // po_remarks value -> count
+  const reasons = {}; // reason_rejection value -> count
+  const byGroup = {}; // customer_group_description -> {delayedCount, delaySum}
+  let delaySumAll = 0, delayCountAll = 0;
+
+  rows.forEach(r=>{
+    const status = computeStatus(r);
+    cards.total++;
+    cards.billed += Number(r.billed_amount)||0;
+    if(status==='ON_TIME') cards.onTime++;
+    else if(status==='DELAYED') cards.delayed++;
+    else if(status==='CANCELLED') cards.cancelled++;
+    else if(status==='UNDELIVERED') cards.undelivered++;
+    else cards.open++;
+
+    const mk = anaMonthKey(r.delivery_date);
+    if(mk){
+      if(!monthly[mk]) monthly[mk] = { onTime:0, delayed:0, cancelled:0, undelivered:0, open:0 };
+      if(status==='ON_TIME') monthly[mk].onTime++;
+      else if(status==='DELAYED') monthly[mk].delayed++;
+      else if(status==='CANCELLED') monthly[mk].cancelled++;
+      else if(status==='UNDELIVERED') monthly[mk].undelivered++;
+      else monthly[mk].open++;
+    }
+
+    const am = r.am_sales_name || '(Unassigned)';
+    if(!byAm[am]) byAm[am] = { am_sales_name:am, total:0, onTime:0, delayed:0, cancelled:0, undelivered:0, open:0 };
+    byAm[am].total++;
+    if(status==='ON_TIME') byAm[am].onTime++;
+    else if(status==='DELAYED') byAm[am].delayed++;
+    else if(status==='CANCELLED') byAm[am].cancelled++;
+    else if(status==='UNDELIVERED') byAm[am].undelivered++;
+    else byAm[am].open++;
+
+    const custKey = r.customer_name || r.customer || '(Unknown)';
+    if(!byCustomer[custKey]) byCustomer[custKey] = { customer_name:custKey, total:0, billed:0, cancelled:0, delayed:0, undelivered:0 };
+    byCustomer[custKey].total++;
+    byCustomer[custKey].billed += Number(r.billed_amount)||0;
+    if(status==='CANCELLED') byCustomer[custKey].cancelled++;
+    if(status==='DELAYED') byCustomer[custKey].delayed++;
+    if(status==='UNDELIVERED') byCustomer[custKey].undelivered++;
+
+    const rm = (r.po_remarks||'').trim() || '(blank)';
+    remarks[rm] = (remarks[rm]||0) + 1;
+
+    const rs = (r.reason_rejection||'').trim();
+    if(rs) reasons[rs] = (reasons[rs]||0) + 1;
+
+    const grp = r.customer_group_description || '(Unspecified)';
+    if(!byGroup[grp]) byGroup[grp] = { customer_group_description:grp, delayedCount:0, delaySum:0, total:0 };
+    byGroup[grp].total++;
+    if(status==='DELAYED'){
+      const d = anaDelayDays(r);
+      if(d!=null){
+        byGroup[grp].delayedCount++;
+        byGroup[grp].delaySum += d;
+        delaySumAll += d;
+        delayCountAll++;
+      }
+    }
+  });
+
+  cards.avgDelay = delayCountAll ? (delaySumAll/delayCountAll) : null;
+
+  const monthKeys = Object.keys(monthly).sort();
+  const monthlySeries = monthKeys.map(k=>({
+    key:k, label:anaMonthLabel(k), ...monthly[k],
+    onTimeRate: (monthly[k].onTime+monthly[k].delayed) ? (monthly[k].onTime/(monthly[k].onTime+monthly[k].delayed)*100) : null
+  }));
+
+  const byAmArr = Object.values(byAm).map(a=>({
+    ...a,
+    onTimeRate: (a.onTime+a.delayed) ? (a.onTime/(a.onTime+a.delayed)*100) : null
+  }));
+
+  const byCustomerArr = Object.values(byCustomer);
+  const topCustomers = byCustomerArr.slice().sort((a,b)=>b.total-a.total).slice(0,20);
+  const issueCustomers = byCustomerArr
+    .map(c=>({...c, issues: c.cancelled+c.delayed+c.undelivered}))
+    .filter(c=>c.issues>0)
+    .sort((a,b)=>b.issues-a.issues)
+    .slice(0,15);
+
+  const remarksArr = Object.keys(remarks).map(k=>({ remark:k, count:remarks[k] })).sort((a,b)=>b.count-a.count);
+  const reasonsArr = Object.keys(reasons).map(k=>({ reason:k, count:reasons[k] })).sort((a,b)=>b.count-a.count).slice(0,15);
+
+  const delayByGroupArr = Object.values(byGroup)
+    .map(g=>({ customer_group_description:g.customer_group_description, total:g.total, delayedCount:g.delayedCount, avgDelayDays: g.delayedCount ? (g.delaySum/g.delayedCount) : null }))
+    .sort((a,b)=>(b.avgDelayDays||0)-(a.avgDelayDays||0));
+
+  return { cards, monthlySeries, byAmArr, topCustomers, issueCustomers, remarksArr, reasonsArr, delayByGroupArr };
+}
+
+/* ---- rendering ---- */
+function anaChart(canvasId, config){
+  const ctx = document.getElementById(canvasId);
+  if(anaCharts[canvasId]) anaCharts[canvasId].destroy();
+  anaCharts[canvasId] = new Chart(ctx, config);
+}
+
+function fmtPct(v){ return v==null ? '—' : v.toFixed(1)+'%'; }
+function fmtDays(v){ return v==null ? '—' : v.toFixed(1)+' d'; }
+
+function renderAnalytics(rows){
+  const a = computeAnalyticsAggregates(rows);
+  anaLastComputed = a;
+
+  document.getElementById('anaCards').innerHTML = `
+    <div class="card"><div class="label">Total Orders</div><div class="value">${a.cards.total.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Billed Amount</div><div class="value">${a.cards.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</div></div>
+    <div class="card accent-green"><div class="label">On-Time Rate</div><div class="value">${fmtPct((a.cards.onTime+a.cards.delayed) ? a.cards.onTime/(a.cards.onTime+a.cards.delayed)*100 : null)}</div></div>
+    <div class="card accent-amber"><div class="label">Avg Delay (late orders)</div><div class="value">${fmtDays(a.cards.avgDelay)}</div></div>
+    <div class="card accent-red"><div class="label">Cancelled</div><div class="value">${a.cards.cancelled.toLocaleString()}</div></div>
+    <div class="card accent-purple"><div class="label">Undelivered</div><div class="value">${a.cards.undelivered.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Open Orders</div><div class="value">${a.cards.open.toLocaleString()}</div></div>
+  `;
+
+  anaChart('anaStatusChart', {
+    type: 'bar',
+    data: {
+      labels: a.monthlySeries.map(m=>m.label),
+      datasets: [
+        { label:'On Time', data:a.monthlySeries.map(m=>m.onTime), backgroundColor:'#2E8B57' },
+        { label:'Delayed', data:a.monthlySeries.map(m=>m.delayed), backgroundColor:'#D98E2B' },
+        { label:'Cancelled', data:a.monthlySeries.map(m=>m.cancelled), backgroundColor:'#C4483C' },
+        { label:'Undelivered', data:a.monthlySeries.map(m=>m.undelivered), backgroundColor:'#7A4FBF' },
+        { label:'Open', data:a.monthlySeries.map(m=>m.open), backgroundColor:'#8FA0BE' }
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      scales: { x:{ stacked:true }, y:{ stacked:true, beginAtZero:true } },
+      plugins: { legend:{ position:'bottom' } }
+    }
+  });
+
+  anaChart('anaTrendChart', {
+    type: 'line',
+    data: {
+      labels: a.monthlySeries.map(m=>m.label),
+      datasets: [{
+        label:'On-Time Rate (%)',
+        data:a.monthlySeries.map(m=>m.onTimeRate),
+        borderColor:'#0F8B8D', backgroundColor:'rgba(15,139,141,0.12)',
+        spanGaps:true, tension:0.25, fill:true
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      scales: { y:{ beginAtZero:true, max:100, ticks:{ callback:v=>v+'%' } } },
+      plugins: { legend:{ display:false } }
+    }
+  });
+
+  const sortedRemarks = a.remarksArr.slice(0,12);
+  anaChart('anaRemarksChart', {
+    type: 'bar',
+    data: {
+      labels: sortedRemarks.map(r=>r.remark),
+      datasets: [{ label:'Orders', data: sortedRemarks.map(r=>r.count), backgroundColor:'#152A4A' }]
+    },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      scales: { x:{ beginAtZero:true } },
+      plugins: { legend:{ display:false } }
+    }
+  });
+
+  document.getElementById('anaAmCount').textContent = a.byAmArr.length + ' reps';
+  anaAmTableCtl.setData(a.byAmArr);
+
+  document.getElementById('anaCustTopCount').textContent = a.topCustomers.length + ' shown';
+  anaCustTopTableCtl.setData(a.topCustomers);
+
+  document.getElementById('anaCustIssueCount').textContent = a.issueCustomers.length + ' shown';
+  anaCustIssueTableCtl.setData(a.issueCustomers);
+
+  document.getElementById('anaReasonCount').textContent = a.reasonsArr.length + ' reasons';
+  anaReasonTableCtl.setData(a.reasonsArr);
+
+  document.getElementById('anaDelayCount').textContent = a.delayByGroupArr.length + ' groups';
+  anaDelayTableCtl.setData(a.delayByGroupArr);
+}
+
+/* ---- sortable report tables ---- */
+function createReportTable(tableId, columns){
+  const state = { col: columns[0].key, dir:'desc', data: [] };
+  const thead = document.querySelector('#'+tableId+' thead');
+  const tbody = document.querySelector('#'+tableId+' tbody');
+
+  function renderHeader(){
+    thead.innerHTML = '<tr>' + columns.map(c=>{
+      const sorted = state.col===c.key;
+      const arrow = sorted ? (state.dir==='asc' ? '▲' : '▼') : '↕';
+      return `<th class="sortable${sorted?' sorted':''}" data-key="${c.key}">${escapeHtml(c.label)} <span class="sort-arrow">${arrow}</span></th>`;
+    }).join('') + '</tr>';
+  }
+  function renderBody(){
+    const col = columns.find(c=>c.key===state.col);
+    const sorted = state.data.slice().sort((x,y)=>{
+      let av = x[state.col], bv = y[state.col];
+      if(col.numeric){
+        av = (av==null) ? -Infinity : Number(av);
+        bv = (bv==null) ? -Infinity : Number(bv);
+      } else {
+        av = String(av==null?'':av).toLowerCase();
+        bv = String(bv==null?'':bv).toLowerCase();
+      }
+      if(av<bv) return state.dir==='asc' ? -1 : 1;
+      if(av>bv) return state.dir==='asc' ? 1 : -1;
+      return 0;
+    });
+    if(!sorted.length){
+      tbody.innerHTML = `<tr><td colspan="${columns.length}"><div class="empty-state"><div class="icon">📊</div>No data for this range.</div></td></tr>`;
+    } else {
+      tbody.innerHTML = sorted.map(row=>{
+        return '<tr>' + columns.map(c=>{
+          const raw = row[c.key];
+          const display = c.format ? c.format(raw, row) : escapeHtml(raw==null?'':String(raw));
+          return `<td${c.numeric?' class="num"':''}>${display}</td>`;
+        }).join('') + '</tr>';
+      }).join('');
+    }
+    syncTableTopScroll(tableId);
+  }
+  thead.addEventListener('click', (e)=>{
+    const th = e.target.closest('th.sortable');
+    if(!th) return;
+    const key = th.dataset.key;
+    if(state.col===key){ state.dir = state.dir==='asc' ? 'desc' : 'asc'; }
+    else { state.col = key; state.dir = columns.find(c=>c.key===key).numeric ? 'desc' : 'asc'; }
+    renderHeader();
+    renderBody();
+  });
+  renderHeader();
+  return { setData(data){ state.data = data; renderBody(); } };
+}
+
+const anaAmTableCtl = createReportTable('anaAmTable', [
+  { key:'am_sales_name', label:'AM Sales Name' },
+  { key:'total', label:'Total Orders', numeric:true },
+  { key:'onTime', label:'On Time', numeric:true },
+  { key:'delayed', label:'Delayed', numeric:true },
+  { key:'cancelled', label:'Cancelled', numeric:true },
+  { key:'undelivered', label:'Undelivered', numeric:true },
+  { key:'open', label:'Open', numeric:true },
+  { key:'onTimeRate', label:'On-Time Rate', numeric:true, format:fmtPct }
+]);
+
+const anaCustTopTableCtl = createReportTable('anaCustTopTable', [
+  { key:'customer_name', label:'Customer' },
+  { key:'total', label:'Total Orders', numeric:true },
+  { key:'billed', label:'Billed Amount', numeric:true, format:v=>v.toLocaleString(undefined,{minimumFractionDigits:2}) },
+  { key:'cancelled', label:'Cancelled', numeric:true },
+  { key:'delayed', label:'Delayed', numeric:true }
+]);
+
+const anaCustIssueTableCtl = createReportTable('anaCustIssueTable', [
+  { key:'customer_name', label:'Customer' },
+  { key:'issues', label:'Total Issues', numeric:true },
+  { key:'cancelled', label:'Cancelled', numeric:true },
+  { key:'delayed', label:'Delayed', numeric:true },
+  { key:'undelivered', label:'Undelivered', numeric:true },
+  { key:'total', label:'Total Orders', numeric:true }
+]);
+
+const anaReasonTableCtl = createReportTable('anaReasonTable', [
+  { key:'reason', label:'Reason for Rejection' },
+  { key:'count', label:'Occurrences', numeric:true }
+]);
+
+const anaDelayTableCtl = createReportTable('anaDelayTable', [
+  { key:'customer_group_description', label:'Customer Group' },
+  { key:'total', label:'Total Orders', numeric:true },
+  { key:'delayedCount', label:'Delayed Orders', numeric:true },
+  { key:'avgDelayDays', label:'Avg Days Late', numeric:true, format:fmtDays }
+]);
+
+/* ---- Excel export ---- */
+document.getElementById('anaExportBtn').addEventListener('click', ()=>{
+  if(!anaLastComputed || !anaRows.length) return;
+  const a = anaLastComputed;
+  const wb = XLSX.utils.book_new();
+
+  const rawSheet = anaRows.map(r=>({
+    'Sales document': r.sales_document, 'Customer': r.customer, 'Customer Name': r.customer_name,
+    'Customer Group': r.customer_group_description, 'AM Sales Name': r.am_sales_name,
+    'Delivery Date': r.delivery_date, 'Received Date': r.received_date,
+    'Status': computeStatus(r), 'P.O Remarks': r.po_remarks, 'Reason for Rejection': r.reason_rejection,
+    'Remarks': r.remarks, 'Billed Amount': r.billed_amount
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawSheet), 'Raw Data');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.byAmArr.map(x=>({
+    'AM Sales Name':x.am_sales_name, 'Total Orders':x.total, 'On Time':x.onTime, 'Delayed':x.delayed,
+    'Cancelled':x.cancelled, 'Undelivered':x.undelivered, 'Open':x.open, 'On-Time Rate %': x.onTimeRate==null?'':x.onTimeRate.toFixed(1)
+  }))), 'By AM');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.topCustomers.map(x=>({
+    'Customer':x.customer_name, 'Total Orders':x.total, 'Billed Amount':x.billed, 'Cancelled':x.cancelled, 'Delayed':x.delayed
+  }))), 'Top Customers');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.issueCustomers.map(x=>({
+    'Customer':x.customer_name, 'Total Issues':x.issues, 'Cancelled':x.cancelled, 'Delayed':x.delayed, 'Undelivered':x.undelivered, 'Total Orders':x.total
+  }))), 'Problem Customers');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.monthlySeries.map(x=>({
+    'Month':x.label, 'On Time':x.onTime, 'Delayed':x.delayed, 'Cancelled':x.cancelled, 'Undelivered':x.undelivered, 'Open':x.open,
+    'On-Time Rate %': x.onTimeRate==null?'':x.onTimeRate.toFixed(1)
+  }))), 'Monthly Trend');
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.remarksArr.map(x=>({ 'P.O Remarks':x.remark, 'Count':x.count }))), 'PO Remarks');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.reasonsArr.map(x=>({ 'Reason for Rejection':x.reason, 'Count':x.count }))), 'Top Reasons');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.delayByGroupArr.map(x=>({
+    'Customer Group':x.customer_group_description, 'Total Orders':x.total, 'Delayed Orders':x.delayedCount,
+    'Avg Days Late': x.avgDelayDays==null?'':x.avgDelayDays.toFixed(1)
+  }))), 'Avg Delay By Group');
+
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `order-fulfillment-report-${stamp}.xlsx`);
+});
+
+let anaLoadedOnce = false;
 
 /* ======================= UTIL ======================= */
 function buildRemarksOptions(currentValue){
