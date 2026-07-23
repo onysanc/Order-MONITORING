@@ -208,9 +208,46 @@
     <div class="panel">
       <div class="toolbar">
         <h2 style="margin:0;">Delivery performance summary</h2>
-        <button class="pill-btn" id="refreshSummaryBtn">Refresh</button>
       </div>
-      <div class="desc">Status is derived automatically from Received Date, Delivery Date and P.O Remarks for each order — see the logic note at the bottom of the page.</div>
+      <div class="desc">Select a Delivery Date range (or use a quick period button below), then click Search. Nothing loads until a complete range is set.</div>
+
+      <div class="settings-grid" style="grid-template-columns:1fr 1fr auto;margin-bottom:14px;">
+        <div>
+          <label>Delivery Date From</label>
+          <input type="date" id="sumDateFrom">
+        </div>
+        <div>
+          <label>Delivery Date To</label>
+          <input type="date" id="sumDateTo">
+        </div>
+        <div>
+          <button class="btn" id="sumSearchBtn">Search</button>
+        </div>
+      </div>
+
+      <div style="margin-bottom:18px;">
+        <label style="margin-bottom:8px;">Quick periods</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button class="pill-btn" data-period="YTD">YTD</button>
+          <button class="pill-btn" data-period="Q1">Q1</button>
+          <button class="pill-btn" data-period="Q2">Q2</button>
+          <button class="pill-btn" data-period="Q3">Q3</button>
+          <button class="pill-btn" data-period="Q4">Q4</button>
+          <button class="pill-btn" data-period="M0">Jan</button>
+          <button class="pill-btn" data-period="M1">Feb</button>
+          <button class="pill-btn" data-period="M2">Mar</button>
+          <button class="pill-btn" data-period="M3">Apr</button>
+          <button class="pill-btn" data-period="M4">May</button>
+          <button class="pill-btn" data-period="M5">Jun</button>
+          <button class="pill-btn" data-period="M6">Jul</button>
+          <button class="pill-btn" data-period="M7">Aug</button>
+          <button class="pill-btn" data-period="M8">Sep</button>
+          <button class="pill-btn" data-period="M9">Oct</button>
+          <button class="pill-btn" data-period="M10">Nov</button>
+          <button class="pill-btn" data-period="M11">Dec</button>
+        </div>
+      </div>
+
       <div id="summaryMsg"></div>
       <div class="summary-cards" id="summaryCards"></div>
       <div class="table-wrap">
@@ -692,8 +729,49 @@ function statusBadge(status){
 }
 
 /* ======================= SUMMARY TAB ======================= */
+function pad2(n){ return String(n).padStart(2,'0'); }
+function toISODate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+
+function applyPeriodPreset(period){
+  const now = new Date();
+  const year = now.getFullYear();
+  let from, to;
+  if(period === 'YTD'){
+    from = new Date(year,0,1);
+    to = now;
+  } else if(period.startsWith('Q')){
+    const q = parseInt(period[1],10); // 1-4
+    const startMonth = (q-1)*3;
+    from = new Date(year, startMonth, 1);
+    to = new Date(year, startMonth+3, 0); // last day of 3rd month in quarter
+  } else if(period.startsWith('M')){
+    const m = parseInt(period.slice(1),10); // 0-11
+    from = new Date(year, m, 1);
+    to = new Date(year, m+1, 0);
+  }
+  document.getElementById('sumDateFrom').value = toISODate(from);
+  document.getElementById('sumDateTo').value = toISODate(to);
+  loadSummary();
+}
+document.querySelectorAll('button[data-period]').forEach(btn=>{
+  btn.addEventListener('click', ()=>applyPeriodPreset(btn.dataset.period));
+});
+
 async function loadSummary(){
   const msg = document.getElementById('summaryMsg');
+  const dateFrom = document.getElementById('sumDateFrom').value;
+  const dateTo = document.getElementById('sumDateTo').value;
+
+  if(!dateFrom || !dateTo){
+    msg.innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To" (or click a quick period button), then click Search.</div>`;
+    document.getElementById('summaryCards').innerHTML = '';
+    document.querySelector('#summaryTable tbody').innerHTML = '';
+    return;
+  }
+  if(dateFrom > dateTo){
+    msg.innerHTML = `<div class="msg err">"Delivery Date From" must be on or before "Delivery Date To".</div>`;
+    return;
+  }
   if(!supabaseClient){
     msg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
     document.getElementById('summaryCards').innerHTML = '';
@@ -702,14 +780,14 @@ async function loadSummary(){
   }
   msg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
   try{
-    const data = await fetchAllRows();
-    msg.innerHTML = '';
+    const data = await fetchAllRows(null, null, { gte:['delivery_date', dateFrom], lte:['delivery_date', dateTo] });
+    msg.innerHTML = `<div class="msg ok">Showing ${data.length} order(s) for ${dateFrom} to ${dateTo}.</div>`;
     renderSummary(data || []);
   }catch(err){
     msg.innerHTML = `<div class="msg err">Could not load summary: ${escapeHtml(err.message||String(err))}</div>`;
   }
 }
-document.getElementById('refreshSummaryBtn').addEventListener('click', loadSummary);
+document.getElementById('sumSearchBtn').addEventListener('click', loadSummary);
 
 function renderSummary(rows){
   const groups = {};
