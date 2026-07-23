@@ -57,6 +57,9 @@
   html[data-theme="dark"] .msg.err{background:rgba(224,107,93,0.14);color:#F0958A;}
   html[data-theme="dark"] .drop:hover, html[data-theme="dark"] .drop.drag{background:var(--teal-light);}
   html[data-theme="dark"] input[type=text],html[data-theme="dark"] input[type=password],html[data-theme="dark"] input[type=date],html[data-theme="dark"] select,html[data-theme="dark"] textarea{color-scheme:dark;}
+  html[data-theme="dark"] .pill-btn{color:var(--text);border-color:var(--line);}
+  html[data-theme="dark"] .pill-btn:hover{background:var(--pill-bg);}
+  html[data-theme="dark"] .pill-btn.active{color:#fff;}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;transition:background .15s,color .15s;}
   .theme-toggle{display:flex;align-items:center;gap:8px;background:none;border:1px solid rgba(255,255,255,0.25);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter';}
@@ -110,7 +113,8 @@
   .drop .icon{font-size:26px;margin-bottom:8px;}
   .drop .fname{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--navy);margin-top:8px;}
 
-  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;scrollbar-width:none;-ms-overflow-style:none;}
+  .table-wrap::-webkit-scrollbar{height:0;display:none;}
   .table-scroll-top{overflow-x:auto;overflow-y:hidden;height:17px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--scrolltop-bg);}
   .table-scroll-top-inner{height:1px;}
   table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:1400px;}
@@ -523,7 +527,7 @@
   </section>
 
   <footer class="note">
-    Status logic — <b>Cancelled</b>: P.O Remarks = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Delivery Date. <b>Delivered But Delayed</b>: Received Date after Delivery Date. <b>Undelivered</b>: no Received Date and P.O Remarks = "Undelivered" (explicitly flagged). <b>Open Orders</b>: no Received Date and not flagged as Cancelled or Undelivered — regardless of whether the Delivery Date has passed. Adjust the <code>computeStatus()</code> function in the page source if your business rule differs.
+    Status logic — <b>Cancelled</b>: P.O Remarks = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Delivery Date. <b>Delivered But Delayed</b>: Received Date after Delivery Date. <b>Undelivered</b>: no Received Date and P.O Remarks = "Undelivered" (explicitly flagged). <b>Open Orders</b>: no Received Date and not flagged as Cancelled or Undelivered — regardless of whether the Delivery Date has passed.
   </footer>
 
 </main>
