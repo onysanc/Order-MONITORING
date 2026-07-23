@@ -45,6 +45,8 @@
   .panel .desc{font-size:13px;color:var(--slate);margin-bottom:16px;}
 
   .settings-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px 16px;}
+  .form-grid label{margin-bottom:5px;}
   label{font-size:12px;font-weight:600;color:var(--slate);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;}
   input[type=text],input[type=password],input[type=date],select,textarea{
     width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:13.5px;font-family:'Inter';background:#fff;color:var(--text);
@@ -121,6 +123,7 @@
 <nav class="tabs">
   <button class="active" data-tab="import">Import Data</button>
   <button data-tab="records">All Records</button>
+  <button data-tab="update">Update Record</button>
   <button data-tab="summary">Summary Dashboard</button>
 </nav>
 
@@ -199,6 +202,54 @@
           <thead></thead>
           <tbody></tbody>
         </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== UPDATE RECORD TAB ===================== -->
+  <section id="tab-update" class="tab hidden">
+    <div class="panel">
+      <h2>Find a record</h2>
+      <div class="desc">Enter the Sales document number to load its saved data, then edit any field below and save.</div>
+      <div class="settings-grid" style="grid-template-columns:1fr auto;max-width:500px;">
+        <div>
+          <label>Sales document</label>
+          <input type="text" id="updLookupInput" placeholder="e.g. 4810330973">
+        </div>
+        <div>
+          <button class="btn" id="updLookupBtn">Load</button>
+        </div>
+      </div>
+      <div id="updLookupMsg"></div>
+    </div>
+
+    <div class="panel hidden" id="updFormPanel">
+      <div class="toolbar">
+        <h2 style="margin:0;">Edit record</h2>
+        <button class="pill-btn" id="updNewSearchBtn">Search another record</button>
+      </div>
+      <div class="form-grid">
+        <div><label>Customer Group Description</label><input type="text" id="upd_customer_group_description"></div>
+        <div><label>Sales Document Type</label><input type="text" id="upd_sales_document_type"></div>
+        <div><label>AM Sales Name</label><input type="text" id="upd_am_sales_name"></div>
+        <div><label>Created on</label><input type="date" id="upd_created_on"></div>
+        <div><label>Sales document</label><input type="text" id="upd_sales_document"></div>
+        <div><label>OBD Number</label><input type="text" id="upd_obd_number"></div>
+        <div><label>Invoice Num</label><input type="text" id="upd_invoice_num"></div>
+        <div><label>Customer Reference</label><input type="text" id="upd_customer_reference"></div>
+        <div><label>Customer</label><input type="text" id="upd_customer"></div>
+        <div><label>Customer Name</label><input type="text" id="upd_customer_name"></div>
+        <div><label>Delivery Date</label><input type="date" id="upd_delivery_date"></div>
+        <div><label>S.O Amt</label><input type="text" id="upd_so_amt"></div>
+        <div><label>Billed Amount</label><input type="text" id="upd_billed_amount"></div>
+        <div><label>P.O Remarks</label><select id="upd_po_remarks"></select></div>
+        <div><label>Reason for Rejection</label><input type="text" id="upd_reason_rejection"></div>
+        <div><label>Remarks</label><input type="text" id="upd_remarks"></div>
+        <div><label>Received Date</label><input type="date" id="upd_received_date"></div>
+      </div>
+      <div id="updSaveMsg" style="margin-top:14px;"></div>
+      <div style="margin-top:10px;">
+        <button class="btn" id="updSaveBtn">Save changes</button>
       </div>
     </div>
   </section>
@@ -695,6 +746,121 @@ async function updateSavedRow(id, tr){
     btn.disabled = false;
   }
 }
+
+/* ======================= UPDATE RECORD TAB ======================= */
+let updCurrentId = null; // id of the row currently loaded for editing
+
+const UPD_FIELD_MAP = {
+  upd_customer_group_description: "customer_group_description",
+  upd_sales_document_type: "sales_document_type",
+  upd_am_sales_name: "am_sales_name",
+  upd_created_on: "created_on",
+  upd_sales_document: "sales_document",
+  upd_obd_number: "obd_number",
+  upd_invoice_num: "invoice_num",
+  upd_customer_reference: "customer_reference",
+  upd_customer: "customer",
+  upd_customer_name: "customer_name",
+  upd_delivery_date: "delivery_date",
+  upd_so_amt: "so_amt",
+  upd_billed_amount: "billed_amount",
+  upd_po_remarks: "po_remarks",
+  upd_reason_rejection: "reason_rejection",
+  upd_remarks: "remarks",
+  upd_received_date: "received_date"
+};
+
+document.getElementById('upd_po_remarks').innerHTML = buildRemarksOptions('');
+
+document.getElementById('updLookupBtn').addEventListener('click', lookupSalesDocument);
+document.getElementById('updLookupInput').addEventListener('keydown', e=>{ if(e.key==='Enter') lookupSalesDocument(); });
+document.getElementById('updNewSearchBtn').addEventListener('click', ()=>{
+  document.getElementById('updFormPanel').classList.add('hidden');
+  document.getElementById('updLookupInput').value = '';
+  document.getElementById('updLookupInput').focus();
+  document.getElementById('updLookupMsg').innerHTML = '';
+  updCurrentId = null;
+});
+
+async function lookupSalesDocument(){
+  const msg = document.getElementById('updLookupMsg');
+  const value = document.getElementById('updLookupInput').value.trim();
+  if(!value){
+    msg.innerHTML = `<div class="msg err">Enter a Sales document number first.</div>`;
+    return;
+  }
+  if(!supabaseClient){
+    msg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
+    return;
+  }
+  msg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Looking up...</div>`;
+  try{
+    const { data, error } = await supabaseClient.from(TABLE_NAME).select('*').eq('sales_document', value).limit(1);
+    if(error) throw error;
+    if(!data || !data.length){
+      msg.innerHTML = `<div class="msg err">No saved record found for Sales document "${escapeHtml(value)}".</div>`;
+      document.getElementById('updFormPanel').classList.add('hidden');
+      return;
+    }
+    populateUpdateForm(data[0]);
+    msg.innerHTML = `<div class="msg ok">Loaded record for Sales document ${escapeHtml(value)}.</div>`;
+    document.getElementById('updFormPanel').classList.remove('hidden');
+  }catch(err){
+    msg.innerHTML = `<div class="msg err">Lookup failed: ${escapeHtml(err.message||String(err))}</div>`;
+  }
+}
+
+function populateUpdateForm(row){
+  updCurrentId = row.id;
+  Object.keys(UPD_FIELD_MAP).forEach(fieldId=>{
+    const col = UPD_FIELD_MAP[fieldId];
+    const el = document.getElementById(fieldId);
+    const val = row[col];
+    if(fieldId === 'upd_po_remarks'){
+      el.innerHTML = buildRemarksOptions(val||'');
+    } else {
+      el.value = (val===undefined||val===null) ? '' : val;
+    }
+  });
+  document.getElementById('updSaveMsg').innerHTML = '';
+}
+
+document.getElementById('updSaveBtn').addEventListener('click', async ()=>{
+  const msg = document.getElementById('updSaveMsg');
+  if(!updCurrentId){
+    msg.innerHTML = `<div class="msg err">Load a record first.</div>`;
+    return;
+  }
+  if(!supabaseClient){
+    msg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
+    return;
+  }
+  const btn = document.getElementById('updSaveBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Saving...`;
+
+  const update = {};
+  Object.keys(UPD_FIELD_MAP).forEach(fieldId=>{
+    const col = UPD_FIELD_MAP[fieldId];
+    let val = document.getElementById(fieldId).value;
+    if(col==='so_amt' || col==='billed_amount'){
+      update[col] = val==='' ? null : Number(val);
+    } else {
+      update[col] = val==='' ? null : val;
+    }
+  });
+
+  try{
+    const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', updCurrentId);
+    if(error) throw error;
+    msg.innerHTML = `<div class="msg ok">Saved.</div>`;
+  }catch(err){
+    msg.innerHTML = `<div class="msg err">Save failed: ${escapeHtml(err.message||String(err))}</div>`;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Save changes';
+  }
+});
 
 /* ======================= STATUS LOGIC ======================= */
 function computeStatus(row){
