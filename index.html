@@ -120,33 +120,11 @@
 
 <nav class="tabs">
   <button class="active" data-tab="import">Import Data</button>
+  <button data-tab="records">All Records</button>
   <button data-tab="summary">Summary Dashboard</button>
-  <button data-tab="settings">Connection Settings</button>
 </nav>
 
 <main>
-
-  <!-- ===================== SETTINGS TAB ===================== -->
-  <section id="tab-settings" class="tab hidden">
-    <div class="panel">
-      <h2>Supabase Connection</h2>
-      <div class="desc">Paste your Supabase project URL and anon public key. These stay in this browser tab only (nothing is uploaded anywhere else). See the setup notes at the bottom of the page for the required table schema.</div>
-      <div class="settings-grid">
-        <div>
-          <label>Project URL</label>
-          <input type="text" id="sbUrl" placeholder="https://xxxxxxxx.supabase.co">
-        </div>
-        <div>
-          <label>Anon Public Key</label>
-          <input type="password" id="sbKey" placeholder="eyJhbGciOi...">
-        </div>
-        <div>
-          <button class="btn" id="connectBtn">Connect</button>
-        </div>
-      </div>
-      <div id="settingsMsg"></div>
-    </div>
-  </section>
 
   <!-- ===================== IMPORT TAB ===================== -->
   <section id="tab-import" class="tab">
@@ -183,15 +161,35 @@
       </div>
     </div>
 
+  </section>
+
+  <!-- ===================== ALL RECORDS TAB ===================== -->
+  <section id="tab-records" class="tab hidden">
     <div class="panel">
       <div class="toolbar">
         <div class="left">
-          <h2 style="margin:0;">Saved records</h2>
+          <h2 style="margin:0;">All saved records</h2>
           <span class="count-pill" id="savedCount">0 rows</span>
         </div>
         <div class="left">
-          <input type="text" id="searchSaved" placeholder="Search customer, sales doc...">
           <button class="pill-btn" id="refreshSavedBtn">Refresh</button>
+        </div>
+      </div>
+      <div class="settings-grid" style="grid-template-columns:1fr 1fr 1fr auto;margin-bottom:16px;">
+        <div>
+          <label>Delivery Date From</label>
+          <input type="date" id="filterDateFrom">
+        </div>
+        <div>
+          <label>Delivery Date To</label>
+          <input type="date" id="filterDateTo">
+        </div>
+        <div>
+          <label>Search</label>
+          <input type="text" id="searchSaved" placeholder="Customer, sales doc, group...">
+        </div>
+        <div>
+          <button class="btn secondary" id="clearFiltersBtn">Clear filters</button>
         </div>
       </div>
       <div id="savedMsg"></div>
@@ -202,7 +200,6 @@
         </table>
       </div>
     </div>
-
   </section>
 
   <!-- ===================== SUMMARY TAB ===================== -->
@@ -284,7 +281,7 @@ document.querySelectorAll('nav.tabs button').forEach(btn=>{
     btn.classList.add('active');
     document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));
     document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
-    if(btn.dataset.tab==='import') loadSavedRows();
+    if(btn.dataset.tab==='records') loadSavedRows();
     if(btn.dataset.tab==='summary') loadSummary();
   });
 });
@@ -295,41 +292,35 @@ function setConnected(ok){
   document.getElementById('connText').textContent = ok ? 'Connected to Supabase' : 'Not connected';
 }
 
-document.getElementById('connectBtn').addEventListener('click', async ()=>{
-  const url = document.getElementById('sbUrl').value.trim();
-  const key = document.getElementById('sbKey').value.trim();
-  const msg = document.getElementById('settingsMsg');
-  if(!url || !key){
-    msg.innerHTML = `<div class="msg err">Please enter both the project URL and anon key.</div>`;
-    return;
-  }
-  try{
-    supabaseClient = window.supabase.createClient(url, key);
-    const { error } = await supabaseClient.from(TABLE_NAME).select('id', { count: 'exact', head:true });
+// Supabase caps each response at 1000 rows by default, so page through with .range()
+// until a page comes back short, to reliably fetch every row in the table.
+async function fetchAllRows(orderCol, ascending){
+  const pageSize = 1000;
+  let all = [];
+  let from = 0;
+  while(true){
+    let q = supabaseClient.from(TABLE_NAME).select('*');
+    if(orderCol) q = q.order(orderCol, { ascending });
+    q = q.range(from, from + pageSize - 1);
+    const { data, error } = await q;
     if(error) throw error;
-    setConnected(true);
-    msg.innerHTML = `<div class="msg ok">Connected. Table "${TABLE_NAME}" is reachable.</div>`;
-    loadSavedRows();
-  }catch(err){
-    setConnected(false);
-    msg.innerHTML = `<div class="msg err">Could not connect: ${escapeHtml(err.message||String(err))}. Check the URL/key and that the "${TABLE_NAME}" table exists (see schema note below).</div>`;
+    all = all.concat(data || []);
+    if(!data || data.length < pageSize) break;
+    from += pageSize;
   }
-});
+  return all;
+}
 
 async function autoConnect(){
-  document.getElementById('sbUrl').value = SUPABASE_URL;
-  document.getElementById('sbKey').value = SUPABASE_ANON_KEY;
-  const msg = document.getElementById('settingsMsg');
   try{
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { error } = await supabaseClient.from(TABLE_NAME).select('id', { count: 'exact', head:true });
     if(error) throw error;
     setConnected(true);
-    msg.innerHTML = `<div class="msg ok">Connected. Table "${TABLE_NAME}" is reachable.</div>`;
     loadSavedRows();
   }catch(err){
     setConnected(false);
-    msg.innerHTML = `<div class="msg err">Could not connect: ${escapeHtml(err.message||String(err))}. Check that the "${TABLE_NAME}" table exists (see schema note below).</div>`;
+    console.error('Supabase connection failed:', err.message||err);
   }
 }
 autoConnect();
@@ -487,7 +478,7 @@ document.getElementById('saveAllBtn').addEventListener('click', saveStagedRows);
 async function saveStagedRows(){
   const saveMsg = document.getElementById('saveMsg');
   if(!supabaseClient){
-    saveMsg.innerHTML = `<div class="msg err">Not connected to Supabase. Go to "Connection Settings" first.</div>`;
+    saveMsg.innerHTML = `<div class="msg err">Not connected to Supabase. Check the browser console for the connection error.</div>`;
     return;
   }
   if(!stagedRows.length) return;
@@ -535,16 +526,14 @@ async function saveStagedRows(){
 async function loadSavedRows(){
   const savedMsg = document.getElementById('savedMsg');
   if(!supabaseClient){
-    savedMsg.innerHTML = `<div class="msg info">Connect to Supabase in "Connection Settings" to view saved records.</div>`;
+    savedMsg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
     savedRows = [];
     renderSavedTable();
     return;
   }
   savedMsg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
   try{
-    const { data, error } = await supabaseClient.from(TABLE_NAME).select('*').order('created_on', {ascending:false});
-    if(error) throw error;
-    savedRows = data || [];
+    savedRows = await fetchAllRows('created_on', false);
     savedMsg.innerHTML = '';
     renderSavedTable();
   }catch(err){
@@ -553,25 +542,46 @@ async function loadSavedRows(){
 }
 document.getElementById('refreshSavedBtn').addEventListener('click', loadSavedRows);
 document.getElementById('searchSaved').addEventListener('input', renderSavedTable);
+document.getElementById('filterDateFrom').addEventListener('change', renderSavedTable);
+document.getElementById('filterDateTo').addEventListener('change', renderSavedTable);
+document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  document.getElementById('searchSaved').value = '';
+  renderSavedTable();
+});
 
 function renderSavedTable(){
   const thead = document.querySelector('#savedTable thead');
   const tbody = document.querySelector('#savedTable tbody');
-  document.getElementById('savedCount').textContent = savedRows.length + ' rows';
   thead.innerHTML = '<tr>' +
     DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
     `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th>Status</th><th></th></tr>`;
 
   const q = document.getElementById('searchSaved').value.trim().toLowerCase();
-  const filtered = !q ? savedRows : savedRows.filter(r=>
-    (r.customer_name||'').toLowerCase().includes(q) ||
-    (r.customer||'').toLowerCase().includes(q) ||
-    (r.sales_document||'').toLowerCase().includes(q) ||
-    (r.customer_group_description||'').toLowerCase().includes(q)
-  );
+  const dateFrom = document.getElementById('filterDateFrom').value; // yyyy-mm-dd or ''
+  const dateTo = document.getElementById('filterDateTo').value;
+
+  let filtered = savedRows.filter(r=>{
+    if(dateFrom && (!r.delivery_date || r.delivery_date < dateFrom)) return false;
+    if(dateTo && (!r.delivery_date || r.delivery_date > dateTo)) return false;
+    if(q){
+      const hit = (r.customer_name||'').toLowerCase().includes(q) ||
+        (r.customer||'').toLowerCase().includes(q) ||
+        (r.sales_document||'').toLowerCase().includes(q) ||
+        (r.customer_group_description||'').toLowerCase().includes(q) ||
+        (r.obd_number||'').toLowerCase().includes(q) ||
+        (r.invoice_num||'').toLowerCase().includes(q) ||
+        (r.customer_reference||'').toLowerCase().includes(q);
+      if(!hit) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('savedCount').textContent = filtered.length + ' of ' + savedRows.length + ' rows';
 
   if(!filtered.length){
-    tbody.innerHTML = `<tr><td colspan="18"><div class="empty-state"><div class="icon">🗂</div>No saved records yet.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="18"><div class="empty-state"><div class="icon">🗂</div>No records match these filters.</div></td></tr>`;
     return;
   }
 
@@ -656,15 +666,14 @@ function statusBadge(status){
 async function loadSummary(){
   const msg = document.getElementById('summaryMsg');
   if(!supabaseClient){
-    msg.innerHTML = `<div class="msg info">Connect to Supabase in "Connection Settings" to view the summary.</div>`;
+    msg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
     document.getElementById('summaryCards').innerHTML = '';
     document.querySelector('#summaryTable tbody').innerHTML = '';
     return;
   }
   msg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
   try{
-    const { data, error } = await supabaseClient.from(TABLE_NAME).select('*');
-    if(error) throw error;
+    const data = await fetchAllRows();
     msg.innerHTML = '';
     renderSummary(data || []);
   }catch(err){
