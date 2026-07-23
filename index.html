@@ -62,6 +62,15 @@
   .theme-toggle{display:flex;align-items:center;gap:8px;background:none;border:1px solid rgba(255,255,255,0.25);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter';}
   .theme-toggle:hover{background:rgba(255,255,255,0.1);}
   .theme-toggle .icon{font-size:13px;}
+
+  .pw-overlay{position:fixed;inset:0;background:rgba(10,15,25,0.55);display:flex;align-items:center;justify-content:center;z-index:1000;}
+  .pw-modal{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:26px 26px 22px;width:320px;max-width:90vw;box-shadow:0 20px 50px rgba(0,0,0,0.3);}
+  .pw-modal h3{font-family:'Space Grotesk';margin:0 0 6px;font-size:16px;color:var(--text);}
+  .pw-modal p{font-size:13px;color:var(--slate);margin:0 0 14px;}
+  .pw-modal input[type=password]{width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:13.5px;font-family:'Inter';background:var(--panel);color:var(--text);margin-bottom:10px;}
+  .pw-modal input:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal);}
+  .pw-err{font-size:12px;color:var(--red);margin-bottom:10px;}
+  .pw-actions{display:flex;justify-content:flex-end;gap:10px;}
   header{background:var(--navy);color:#fff;padding:22px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
   header .brand{display:flex;align-items:center;gap:14px;}
   header .brand .mark{width:34px;height:34px;border-radius:8px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;font-size:16px;}
@@ -169,18 +178,31 @@
   </div>
 </header>
 
+<div id="pwOverlay" class="pw-overlay hidden">
+  <div class="pw-modal">
+    <h3>Restricted tab</h3>
+    <p>Enter the password to open <strong id="pwTabName">this tab</strong>.</p>
+    <input type="password" id="pwInput" placeholder="Password" autocomplete="off">
+    <div id="pwErr" class="pw-err hidden">Incorrect password. Try again.</div>
+    <div class="pw-actions">
+      <button type="button" class="btn secondary" id="pwCancelBtn">Cancel</button>
+      <button type="button" class="btn" id="pwSubmitBtn">Unlock</button>
+    </div>
+  </div>
+</div>
+
 <nav class="tabs">
-  <button class="active" data-tab="import">Import Data</button>
-  <button data-tab="records">All Records</button>
-  <button data-tab="update">Update Record</button>
-  <button data-tab="summary">Summary Dashboard</button>
+  <button class="active" data-tab="summary">Summary Dashboard</button>
   <button data-tab="analytics">Analytics &amp; Reports</button>
+  <button data-tab="records">All Records</button>
+  <button data-tab="update" data-protected="1">Update Record</button>
+  <button data-tab="import" data-protected="1">Import Data</button>
 </nav>
 
 <main>
 
   <!-- ===================== IMPORT TAB ===================== -->
-  <section id="tab-import" class="tab">
+  <section id="tab-import" class="tab hidden">
 
     <div class="panel">
       <h2>1. Upload order data</h2>
@@ -328,7 +350,7 @@
   </section>
 
   <!-- ===================== SUMMARY TAB ===================== -->
-  <section id="tab-summary" class="tab hidden">
+  <section id="tab-summary" class="tab">
     <div class="panel">
       <div class="toolbar">
         <h2 style="margin:0;">Delivery performance summary</h2>
@@ -614,17 +636,73 @@ let supabaseClient = null;
 let stagedRows = []; // rows parsed from the uploaded file, pending save
 let savedRows = [];  // rows loaded from the database
 
-/* ======================= TAB SWITCHING ======================= */
+/* ======================= TAB SWITCHING (with password-protected tabs) ======================= */
+const TAB_PASSWORD = 'jaja'; // case-insensitive check below
+let protectedUnlocked = false; // once unlocked for this session, stays unlocked
+let pendingTabBtn = null;
+
+const TAB_LABELS = { update:'Update Record', import:'Import Data' };
+
+function activateTab(btn){
+  document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));
+  document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
+  if(btn.dataset.tab==='records') loadSavedRows();
+  if(btn.dataset.tab==='summary') loadSummary();
+  if(btn.dataset.tab==='analytics' && !anaLoadedOnce){ anaLoadedOnce = true; loadAnalytics(); }
+}
+
+function openPwModal(btn){
+  pendingTabBtn = btn;
+  document.getElementById('pwTabName').textContent = TAB_LABELS[btn.dataset.tab] || 'this tab';
+  document.getElementById('pwInput').value = '';
+  document.getElementById('pwErr').classList.add('hidden');
+  document.getElementById('pwOverlay').classList.remove('hidden');
+  setTimeout(()=>document.getElementById('pwInput').focus(), 30);
+}
+function closePwModal(){
+  document.getElementById('pwOverlay').classList.add('hidden');
+  pendingTabBtn = null;
+}
+function submitPw(){
+  const val = document.getElementById('pwInput').value || '';
+  if(val.toLowerCase() === TAB_PASSWORD){
+    protectedUnlocked = true;
+    const btn = pendingTabBtn;
+    closePwModal();
+    if(btn) activateTab(btn);
+  } else {
+    document.getElementById('pwErr').classList.remove('hidden');
+    const input = document.getElementById('pwInput');
+    input.value = '';
+    input.focus();
+  }
+}
+document.getElementById('pwSubmitBtn').addEventListener('click', submitPw);
+document.getElementById('pwCancelBtn').addEventListener('click', closePwModal);
+document.getElementById('pwInput').addEventListener('keydown', (e)=>{ if(e.key==='Enter') submitPw(); });
+document.getElementById('pwOverlay').addEventListener('click', (e)=>{ if(e.target.id==='pwOverlay') closePwModal(); });
+
 document.querySelectorAll('nav.tabs button').forEach(btn=>{
   btn.addEventListener('click', ()=>{
-    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));
-    document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
-    if(btn.dataset.tab==='records') loadSavedRows();
-    if(btn.dataset.tab==='summary') loadSummary();
-    if(btn.dataset.tab==='analytics' && !anaLoadedOnce){ anaLoadedOnce = true; loadAnalytics(); }
+    if(btn.dataset.protected === '1' && !protectedUnlocked){
+      openPwModal(btn);
+      return;
+    }
+    activateTab(btn);
   });
+});
+
+// Load the Summary Dashboard on first page load since it's now the default tab.
+document.addEventListener('DOMContentLoaded', ()=>{
+  if(supabaseClient){ loadSummary(); }
+  else {
+    const waitForConn = setInterval(()=>{
+      if(supabaseClient){ clearInterval(waitForConn); loadSummary(); }
+    }, 200);
+    setTimeout(()=>clearInterval(waitForConn), 8000);
+  }
 });
 
 /* ======================= SUPABASE CONNECTION ======================= */
