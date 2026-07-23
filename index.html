@@ -363,16 +363,40 @@ function handleFile(file){
         return;
       }
       const headers = Object.keys(json[0]);
-      const missing = UPLOAD_HEADERS.filter(h=>!headers.includes(h));
+      // Match headers ignoring extra/leading/trailing whitespace and case,
+      // since exported files often have stray spaces (e.g. "S.O AMT " or " BILLED AMOUNT").
+      const normalize = s => String(s).replace(/\s+/g,' ').trim().toLowerCase();
+      const headerLookup = {};
+      headers.forEach(h => { headerLookup[normalize(h)] = h; });
+      const resolvedHeaderFor = {}; // expected header -> actual header found in file
+      const missing = UPLOAD_HEADERS.filter(h=>{
+        const actual = headerLookup[normalize(h)];
+        if(actual){ resolvedHeaderFor[h] = actual; return false; }
+        return true;
+      });
       if(missing.length){
         importMsg.innerHTML = `<div class="msg err">Missing expected column(s): ${missing.join(', ')}. Found columns: ${headers.join(', ')}</div>`;
         return;
       }
+      // Optional columns: if the file already has these (e.g. re-exported from this
+      // same tool), prefill them instead of leaving them blank.
+      const OPTIONAL_COLUMN_MAP = {
+        "P.O REMARKS": "_po_remarks",
+        "reason rejection": "_reason_rejection",
+        "REMARKS": "_remarks",
+        "received date": "_received_date"
+      };
+      const resolvedOptionalHeaderFor = {};
+      Object.keys(OPTIONAL_COLUMN_MAP).forEach(h=>{
+        const actual = headerLookup[normalize(h)];
+        if(actual) resolvedOptionalHeaderFor[h] = actual;
+      });
+
       stagedRows = json.map(r=>{
         const row = {};
         UPLOAD_HEADERS.forEach(h=>{
           const key = COLUMN_MAP[h];
-          let val = r[h];
+          let val = r[resolvedHeaderFor[h]];
           if(val instanceof Date) val = val.toISOString().slice(0,10);
           row[key] = (val===undefined||val===null) ? "" : val;
         });
@@ -380,6 +404,14 @@ function handleFile(file){
         row._reason_rejection = "";
         row._remarks = "";
         row._received_date = "";
+        Object.keys(OPTIONAL_COLUMN_MAP).forEach(h=>{
+          const actualHeader = resolvedOptionalHeaderFor[h];
+          if(!actualHeader) return;
+          const field = OPTIONAL_COLUMN_MAP[h];
+          let val = r[actualHeader];
+          if(val instanceof Date) val = val.toISOString().slice(0,10);
+          row[field] = (val===undefined||val===null) ? "" : String(val);
+        });
         return row;
       });
       importMsg.innerHTML = `<div class="msg ok">Loaded ${stagedRows.length} row(s). Fill in the input columns below, then save.</div>`;
@@ -422,7 +454,7 @@ function renderPreviewTable(){
       const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
       return `<td${cls}>${escapeHtml(String(row[c[0]]))}</td>`;
     }).join('');
-    const remarksOptions = PO_REMARKS_OPTIONS.map(o=>`<option value="${o}" ${row._po_remarks===o?'selected':''}>${o||'—'}</option>`).join('');
+    const remarksOptions = buildRemarksOptions(row._po_remarks);
     return `<tr data-idx="${i}">
       ${cells}
       <td><select class="stg-po">${remarksOptions}</select></td>
@@ -550,7 +582,7 @@ function renderSavedTable(){
       if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null) val = Number(val).toLocaleString(undefined,{minimumFractionDigits:2});
       return `<td${cls}>${escapeHtml(val==null?'':String(val))}</td>`;
     }).join('');
-    const remarksOptions = PO_REMARKS_OPTIONS.map(o=>`<option value="${o}" ${row.po_remarks===o?'selected':''}>${o||'—'}</option>`).join('');
+    const remarksOptions = buildRemarksOptions(row.po_remarks);
     const status = computeStatus(row);
     return `<tr data-id="${row.id}">
       ${cells}
@@ -706,6 +738,12 @@ function renderSummary(rows){
 }
 
 /* ======================= UTIL ======================= */
+function buildRemarksOptions(currentValue){
+  let options = PO_REMARKS_OPTIONS.slice();
+  const matches = options.some(o => o.toLowerCase() === (currentValue||'').toLowerCase());
+  if(currentValue && !matches) options.push(currentValue); // preserve values from uploaded/legacy data
+  return options.map(o=>`<option value="${escapeAttr(o)}" ${ (currentValue||'').toLowerCase()===o.toLowerCase() ? 'selected':''}>${o||'—'}</option>`).join('');
+}
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
