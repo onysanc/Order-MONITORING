@@ -4,8 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Order Fulfillment Tracker</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';document.head.appendChild(s);"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" onerror="this.onerror=null;var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js';document.head.appendChild(s);"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
@@ -23,9 +23,45 @@
     --red:#C4483C;
     --green:#2E8B57;
     --text:#1B2436;
+    --thead-bg:#F7F9FC;
+    --row-hover:#FAFBFD;
+    --card-bg:#FFFFFF;
+    --scrolltop-bg:#F7F9FC;
+    --pill-bg:#F0F3F8;
   }
+  html[data-theme="dark"]{
+    --navy:#0E1B30;
+    --navy-dark:#070E1C;
+    --slate:#8C9BB8;
+    --teal:#17A6A8;
+    --teal-light:#123A3C;
+    --bg:#0F1521;
+    --panel:#171F2E;
+    --line:#2A3345;
+    --amber:#E3A34C;
+    --red:#E06B5D;
+    --green:#4FB77D;
+    --text:#E6EAF2;
+    --thead-bg:#1B2434;
+    --row-hover:#1D2738;
+    --card-bg:#171F2E;
+    --scrolltop-bg:#1B2434;
+    --pill-bg:#1F2A3D;
+  }
+  html[data-theme="dark"] .badge.on-time{background:rgba(79,183,125,0.16);}
+  html[data-theme="dark"] .badge.delayed{background:rgba(227,163,76,0.16);}
+  html[data-theme="dark"] .badge.cancelled{background:rgba(224,107,93,0.16);}
+  html[data-theme="dark"] .badge.undelivered{background:rgba(160,120,220,0.18);color:#B49BE8;}
+  html[data-theme="dark"] .badge.open{background:rgba(140,160,200,0.16);color:#C7D2E6;}
+  html[data-theme="dark"] .msg.ok{background:rgba(79,183,125,0.14);color:#7DDBA6;}
+  html[data-theme="dark"] .msg.err{background:rgba(224,107,93,0.14);color:#F0958A;}
+  html[data-theme="dark"] .drop:hover, html[data-theme="dark"] .drop.drag{background:var(--teal-light);}
+  html[data-theme="dark"] input[type=text],html[data-theme="dark"] input[type=password],html[data-theme="dark"] input[type=date],html[data-theme="dark"] select,html[data-theme="dark"] textarea{color-scheme:dark;}
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;transition:background .15s,color .15s;}
+  .theme-toggle{display:flex;align-items:center;gap:8px;background:none;border:1px solid rgba(255,255,255,0.25);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter';}
+  .theme-toggle:hover{background:rgba(255,255,255,0.1);}
+  .theme-toggle .icon{font-size:13px;}
   header{background:var(--navy);color:#fff;padding:22px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
   header .brand{display:flex;align-items:center;gap:14px;}
   header .brand .mark{width:34px;height:34px;border-radius:8px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;font-size:16px;}
@@ -50,13 +86,13 @@
   .form-grid label{margin-bottom:5px;}
   label{font-size:12px;font-weight:600;color:var(--slate);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;}
   input[type=text],input[type=password],input[type=date],select,textarea{
-    width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:13.5px;font-family:'Inter';background:#fff;color:var(--text);
+    width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:13.5px;font-family:'Inter';background:var(--panel);color:var(--text);
   }
   input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal);}
   button.btn{background:var(--teal);color:#fff;border:none;padding:10px 18px;border-radius:6px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:'Inter';}
   button.btn:hover{background:#0C6F71;}
-  button.btn.secondary{background:#fff;color:var(--navy);border:1px solid var(--line);}
-  button.btn.secondary:hover{background:#F0F3F8;}
+  button.btn.secondary{background:var(--panel);color:var(--navy);border:1px solid var(--line);}
+  button.btn.secondary:hover{background:var(--pill-bg);}
   button.btn:disabled{opacity:0.5;cursor:not-allowed;}
   button.btn.danger{background:var(--red);}
 
@@ -66,15 +102,15 @@
   .drop .fname{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--navy);margin-top:8px;}
 
   .table-wrap{overflow-x:auto;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;}
-  .table-scroll-top{overflow-x:auto;overflow-y:hidden;height:17px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:#F7F9FC;}
+  .table-scroll-top{overflow-x:auto;overflow-y:hidden;height:17px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--scrolltop-bg);}
   .table-scroll-top-inner{height:1px;}
   table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:1400px;}
-  thead th{background:#F7F9FC;color:var(--slate);text-transform:uppercase;font-size:10.5px;letter-spacing:0.4px;padding:10px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;z-index:2;}
+  thead th{background:var(--thead-bg);color:var(--slate);text-transform:uppercase;font-size:10.5px;letter-spacing:0.4px;padding:10px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;z-index:2;}
   thead th.input-col{background:var(--teal-light);color:#0C6F71;}
-  thead tr.filter-row th{background:#fff;padding:5px 6px;border-bottom:1px solid var(--line);}
-  thead tr.filter-row th input,thead tr.filter-row th select{width:100%;min-width:88px;padding:4px 6px;font-size:11.5px;text-transform:none;font-weight:400;letter-spacing:normal;border:1px solid var(--line);border-radius:4px;font-family:'Inter';color:var(--text);background:#fff;}
+  thead tr.filter-row th{background:var(--panel);padding:5px 6px;border-bottom:1px solid var(--line);}
+  thead tr.filter-row th input,thead tr.filter-row th select{width:100%;min-width:88px;padding:4px 6px;font-size:11.5px;text-transform:none;font-weight:400;letter-spacing:normal;border:1px solid var(--line);border-radius:4px;font-family:'Inter';color:var(--text);background:var(--panel);}
   tbody td{padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
-  tbody tr:hover{background:#FAFBFD;}
+  tbody tr:hover{background:var(--row-hover);}
   tbody td input, tbody td select{min-width:130px;padding:6px 8px;font-size:12.5px;}
   tbody td.num{text-align:right;font-family:'IBM Plex Mono';}
   .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;}
@@ -87,7 +123,7 @@
   .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
   .toolbar .left{display:flex;gap:10px;align-items:center;}
   .toolbar input[type=text]{width:240px;}
-  .count-pill{font-size:12px;color:var(--slate);background:#F0F3F8;padding:5px 12px;border-radius:20px;}
+  .count-pill{font-size:12px;color:var(--slate);background:var(--pill-bg);padding:5px 12px;border-radius:20px;}
   .msg{font-size:13px;padding:10px 14px;border-radius:6px;margin-bottom:14px;}
   .msg.ok{background:#E4F4EB;color:#1F6B44;}
   .msg.err{background:#FBE9E7;color:#A6392E;}
@@ -104,7 +140,7 @@
 
   footer.note{font-size:12px;color:var(--slate);text-align:center;padding:20px;}
   .pill-btn{background:none;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;}
-  .pill-btn:hover{background:#F0F3F8;}
+  .pill-btn:hover{background:var(--pill-bg);}
   .pill-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;}
   th.sortable{cursor:pointer;user-select:none;}
   th.sortable:hover{color:var(--navy);}
@@ -127,7 +163,10 @@
       <div class="sub">Import, encode &amp; monitor delivery performance</div>
     </div>
   </div>
-  <div class="conn"><span class="dot" id="connDot"></span><span id="connText">Not connected</span></div>
+  <div style="display:flex;align-items:center;gap:16px;">
+    <button type="button" class="theme-toggle" id="themeToggleBtn"><span class="icon" id="themeToggleIcon">🌙</span><span id="themeToggleLabel">Dark mode</span></button>
+    <div class="conn"><span class="dot" id="connDot"></span><span id="connText">Not connected</span></div>
+  </div>
 </header>
 
 <nav class="tabs">
@@ -468,6 +507,36 @@
 </main>
 
 <script>
+/* ======================= THEME (LIGHT/DARK) ======================= */
+(function(){
+  const root = document.documentElement;
+  const stored = localStorage.getItem('of_theme');
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const initial = stored || (prefersDark ? 'dark' : 'light');
+  applyTheme(initial);
+
+  function applyTheme(theme){
+    root.setAttribute('data-theme', theme);
+    const icon = document.getElementById('themeToggleIcon');
+    const label = document.getElementById('themeToggleLabel');
+    if(icon) icon.textContent = theme === 'dark' ? '☀️' : '🌙';
+    if(label) label.textContent = theme === 'dark' ? 'Light mode' : 'Dark mode';
+  }
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    const btn = document.getElementById('themeToggleBtn');
+    // re-apply now that the toggle button exists in the DOM
+    applyTheme(root.getAttribute('data-theme') || initial);
+    if(btn){
+      btn.addEventListener('click', ()=>{
+        const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        applyTheme(next);
+        localStorage.setItem('of_theme', next);
+      });
+    }
+  });
+})();
+
 /* ======================= CONFIG ======================= */
 // Predefined P.O Remarks dropdown options — edit this list freely.
 const PO_REMARKS_OPTIONS = [
@@ -1411,7 +1480,7 @@ function renderSummary(rows){
       <td>${g.delayed.toLocaleString()}</td>
       <td>${g.open.toLocaleString()}</td>
     </tr>`;
-  }).join('') + `<tr style="font-weight:700;background:#F7F9FC;">
+  }).join('') + `<tr style="font-weight:700;background:var(--thead-bg);">
       <td>Grand Total</td>
       <td>${totals.total.toLocaleString()}</td>
       <td class="num">${totals.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
@@ -1591,6 +1660,9 @@ function computeAnalyticsAggregates(rows){
 
 /* ---- rendering ---- */
 function anaChart(canvasId, config){
+  if(typeof Chart === 'undefined'){
+    throw new Error('Chart.js failed to load (network/ad-blocker may be blocking the chart library). The tables below are still up to date — try refreshing the page.');
+  }
   const ctx = document.getElementById(canvasId);
   if(anaCharts[canvasId]) anaCharts[canvasId].destroy();
   anaCharts[canvasId] = new Chart(ctx, config);
@@ -1613,56 +1685,61 @@ function renderAnalytics(rows){
     <div class="card"><div class="label">Open Orders</div><div class="value">${a.cards.open.toLocaleString()}</div></div>
   `;
 
-  anaChart('anaStatusChart', {
-    type: 'bar',
-    data: {
-      labels: a.monthlySeries.map(m=>m.label),
-      datasets: [
-        { label:'On Time', data:a.monthlySeries.map(m=>m.onTime), backgroundColor:'#2E8B57' },
-        { label:'Delayed', data:a.monthlySeries.map(m=>m.delayed), backgroundColor:'#D98E2B' },
-        { label:'Cancelled', data:a.monthlySeries.map(m=>m.cancelled), backgroundColor:'#C4483C' },
-        { label:'Undelivered', data:a.monthlySeries.map(m=>m.undelivered), backgroundColor:'#7A4FBF' },
-        { label:'Open', data:a.monthlySeries.map(m=>m.open), backgroundColor:'#8FA0BE' }
-      ]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      scales: { x:{ stacked:true }, y:{ stacked:true, beginAtZero:true } },
-      plugins: { legend:{ position:'bottom' } }
-    }
-  });
+  try{
+    anaChart('anaStatusChart', {
+      type: 'bar',
+      data: {
+        labels: a.monthlySeries.map(m=>m.label),
+        datasets: [
+          { label:'On Time', data:a.monthlySeries.map(m=>m.onTime), backgroundColor:'#2E8B57' },
+          { label:'Delayed', data:a.monthlySeries.map(m=>m.delayed), backgroundColor:'#D98E2B' },
+          { label:'Cancelled', data:a.monthlySeries.map(m=>m.cancelled), backgroundColor:'#C4483C' },
+          { label:'Undelivered', data:a.monthlySeries.map(m=>m.undelivered), backgroundColor:'#7A4FBF' },
+          { label:'Open', data:a.monthlySeries.map(m=>m.open), backgroundColor:'#8FA0BE' }
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        scales: { x:{ stacked:true }, y:{ stacked:true, beginAtZero:true } },
+        plugins: { legend:{ position:'bottom' } }
+      }
+    });
 
-  anaChart('anaTrendChart', {
-    type: 'line',
-    data: {
-      labels: a.monthlySeries.map(m=>m.label),
-      datasets: [{
-        label:'On-Time Rate (%)',
-        data:a.monthlySeries.map(m=>m.onTimeRate),
-        borderColor:'#0F8B8D', backgroundColor:'rgba(15,139,141,0.12)',
-        spanGaps:true, tension:0.25, fill:true
-      }]
-    },
-    options: {
-      responsive:true, maintainAspectRatio:false,
-      scales: { y:{ beginAtZero:true, max:100, ticks:{ callback:v=>v+'%' } } },
-      plugins: { legend:{ display:false } }
-    }
-  });
+    anaChart('anaTrendChart', {
+      type: 'line',
+      data: {
+        labels: a.monthlySeries.map(m=>m.label),
+        datasets: [{
+          label:'On-Time Rate (%)',
+          data:a.monthlySeries.map(m=>m.onTimeRate),
+          borderColor:'#0F8B8D', backgroundColor:'rgba(15,139,141,0.12)',
+          spanGaps:true, tension:0.25, fill:true
+        }]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        scales: { y:{ beginAtZero:true, max:100, ticks:{ callback:v=>v+'%' } } },
+        plugins: { legend:{ display:false } }
+      }
+    });
 
-  const sortedRemarks = a.remarksArr.slice(0,12);
-  anaChart('anaRemarksChart', {
-    type: 'bar',
-    data: {
-      labels: sortedRemarks.map(r=>r.remark),
-      datasets: [{ label:'Orders', data: sortedRemarks.map(r=>r.count), backgroundColor:'#152A4A' }]
-    },
-    options: {
-      indexAxis:'y', responsive:true, maintainAspectRatio:false,
-      scales: { x:{ beginAtZero:true } },
-      plugins: { legend:{ display:false } }
-    }
-  });
+    const sortedRemarks = a.remarksArr.slice(0,12);
+    anaChart('anaRemarksChart', {
+      type: 'bar',
+      data: {
+        labels: sortedRemarks.map(r=>r.remark),
+        datasets: [{ label:'Orders', data: sortedRemarks.map(r=>r.count), backgroundColor:'#152A4A' }]
+      },
+      options: {
+        indexAxis:'y', responsive:true, maintainAspectRatio:false,
+        scales: { x:{ beginAtZero:true } },
+        plugins: { legend:{ display:false } }
+      }
+    });
+  }catch(chartErr){
+    const msg = document.getElementById('anaMsg');
+    msg.innerHTML += `<div class="msg err">${escapeHtml(chartErr.message||String(chartErr))}</div>`;
+  }
 
   document.getElementById('anaAmCount').textContent = a.byAmArr.length + ' reps';
   anaAmTableCtl.setData(a.byAmArr);
