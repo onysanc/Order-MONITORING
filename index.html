@@ -39,7 +39,7 @@
   nav.tabs button.active{color:#fff;border-bottom:3px solid var(--teal);}
   nav.tabs button:hover{color:#fff;}
 
-  main{padding:28px 32px 60px;max-width:1500px;margin:0 auto;}
+  main{padding:28px 32px 60px;max-width:100%;margin:0 auto;}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;margin-bottom:22px;}
   .panel h2{font-family:'Space Grotesk';font-size:16px;margin:0 0 4px;}
   .panel .desc{font-size:13px;color:var(--slate);margin-bottom:16px;}
@@ -64,10 +64,14 @@
   .drop .icon{font-size:26px;margin-bottom:8px;}
   .drop .fname{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--navy);margin-top:8px;}
 
-  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-top:none;border-radius:0 0 8px 8px;}
+  .table-scroll-top{overflow-x:auto;overflow-y:hidden;height:17px;border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:#F7F9FC;}
+  .table-scroll-top-inner{height:1px;}
   table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:1400px;}
-  thead th{background:#F7F9FC;color:var(--slate);text-transform:uppercase;font-size:10.5px;letter-spacing:0.4px;padding:10px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;}
+  thead th{background:#F7F9FC;color:var(--slate);text-transform:uppercase;font-size:10.5px;letter-spacing:0.4px;padding:10px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;z-index:2;}
   thead th.input-col{background:var(--teal-light);color:#0C6F71;}
+  thead tr.filter-row th{background:#fff;padding:5px 6px;border-bottom:1px solid var(--line);}
+  thead tr.filter-row th input,thead tr.filter-row th select{width:100%;min-width:88px;padding:4px 6px;font-size:11.5px;text-transform:none;font-weight:400;letter-spacing:normal;border:1px solid var(--line);border-radius:4px;font-family:'Inter';color:var(--text);background:#fff;}
   tbody td{padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
   tbody tr:hover{background:#FAFBFD;}
   tbody td input, tbody td select{min-width:130px;padding:6px 8px;font-size:12.5px;}
@@ -156,7 +160,8 @@
         </div>
       </div>
       <div id="saveMsg"></div>
-      <div class="table-wrap">
+      <div class="table-scroll-top" id="previewTableScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="previewTableWrap">
         <table id="previewTable">
           <thead></thead>
           <tbody></tbody>
@@ -197,7 +202,8 @@
         </div>
       </div>
       <div id="savedMsg"></div>
-      <div class="table-wrap">
+      <div class="table-scroll-top" id="savedTableScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="savedTableWrap">
         <table id="savedTable">
           <thead></thead>
           <tbody></tbody>
@@ -233,11 +239,14 @@
         <button class="btn" id="bulkSaveBtn" disabled>Update all matching records</button>
       </div>
       <div id="bulkMsg" style="margin-top:12px;"></div>
-      <div class="table-wrap hidden" id="bulkPreviewWrap" style="margin-top:14px;">
-        <table id="bulkPreviewTable">
-          <thead></thead>
-          <tbody></tbody>
-        </table>
+      <div class="hidden" id="bulkPreviewWrap" style="margin-top:14px;">
+        <div class="table-scroll-top" id="bulkPreviewTableScrollTop"><div class="table-scroll-top-inner"></div></div>
+        <div class="table-wrap" id="bulkPreviewTableWrap">
+          <table id="bulkPreviewTable">
+            <thead></thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </div>
     </div>
 
@@ -319,7 +328,8 @@
 
       <div id="summaryMsg"></div>
       <div class="summary-cards" id="summaryCards"></div>
-      <div class="table-wrap">
+      <div class="table-scroll-top" id="summaryTableScrollTop"><div class="table-scroll-top-inner"></div></div>
+      <div class="table-wrap" id="summaryTableWrap">
         <table id="summaryTable">
           <thead>
             <tr>
@@ -375,6 +385,43 @@ const TABLE_NAME = "orders";
 // Hardcoded Supabase connection (edit these if you change projects/keys)
 const SUPABASE_URL = "https://xwfiobqzgqrazwlklrcb.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_fjn_wPmhcJ-lggDB-9FDTQ_bKFZLc7j";
+
+/* ======================= TOP SCROLLBAR SYNC ======================= */
+// Wide tables get a thin scrollbar mirrored above the header (in addition to the
+// browser's native one below the table), so horizontal scrolling doesn't require
+// scrolling all the way down first. tableId -> { topEl, innerEl, wrapEl }
+const TABLE_TOP_SCROLLERS = {};
+function initTableTopScroll(tableId, topScrollId, wrapId){
+  const table = document.getElementById(tableId);
+  const topEl = document.getElementById(topScrollId);
+  const wrapEl = document.getElementById(wrapId);
+  if(!table || !topEl || !wrapEl) return;
+  const innerEl = topEl.querySelector('.table-scroll-top-inner');
+  let syncing = false;
+  topEl.addEventListener('scroll', ()=>{
+    if(syncing) return;
+    syncing = true; wrapEl.scrollLeft = topEl.scrollLeft; syncing = false;
+  });
+  wrapEl.addEventListener('scroll', ()=>{
+    if(syncing) return;
+    syncing = true; topEl.scrollLeft = wrapEl.scrollLeft; syncing = false;
+  });
+  TABLE_TOP_SCROLLERS[tableId] = { topEl, innerEl, wrapEl, table };
+  if(typeof ResizeObserver !== 'undefined'){
+    new ResizeObserver(()=>{ innerEl.style.width = table.scrollWidth + 'px'; }).observe(table);
+  }
+  innerEl.style.width = table.scrollWidth + 'px';
+}
+// Call after (re)rendering a table's rows so the mirrored scrollbar's width stays accurate.
+function syncTableTopScroll(tableId){
+  const s = TABLE_TOP_SCROLLERS[tableId];
+  if(!s) return;
+  s.innerEl.style.width = s.table.scrollWidth + 'px';
+}
+initTableTopScroll('previewTable', 'previewTableScrollTop', 'previewTableWrap');
+initTableTopScroll('savedTable', 'savedTableScrollTop', 'savedTableWrap');
+initTableTopScroll('bulkPreviewTable', 'bulkPreviewTableScrollTop', 'bulkPreviewTableWrap');
+initTableTopScroll('summaryTable', 'summaryTableScrollTop', 'summaryTableWrap');
 
 /* ======================= STATE ======================= */
 let supabaseClient = null;
@@ -574,6 +621,7 @@ function renderPreviewTable(){
     tr.querySelector('.stg-remarks').addEventListener('input', e=>stagedRows[idx]._remarks = e.target.value);
     tr.querySelector('.stg-received').addEventListener('change', e=>stagedRows[idx]._received_date = e.target.value);
   });
+  syncTableTopScroll('previewTable');
 }
 
 document.getElementById('applyBulkBtn').addEventListener('click', ()=>{
@@ -678,39 +726,90 @@ async function loadSavedRows(){
   }
 }
 document.getElementById('applyDateFilterBtn').addEventListener('click', loadSavedRows);
-document.getElementById('searchSaved').addEventListener('input', renderSavedTable);
+document.getElementById('searchSaved').addEventListener('input', renderSavedTableBody);
 document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
   document.getElementById('filterDateFrom').value = '';
   document.getElementById('filterDateTo').value = '';
   document.getElementById('searchSaved').value = '';
   savedRows = [];
+  savedColumnFilters = {};
   document.getElementById('savedMsg').innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To", then click Search.</div>`;
   renderSavedTable();
 });
 
-function renderSavedTable(){
+// Columns eligible for a per-column text filter, in the order they appear in the table.
+const SAVED_TEXT_FILTER_COLS = DISPLAY_COLS.map(c=>c[0]).concat(['po_remarks','reason_rejection','remarks','received_date']);
+let savedColumnFilters = {}; // col key -> filter text (or 'status' -> exact status code)
+
+function getFilteredSavedRows(){
+  const q = document.getElementById('searchSaved').value.trim().toLowerCase();
+  return savedRows.filter(r=>{
+    if(q){
+      const matchesGlobal = (r.customer_name||'').toLowerCase().includes(q) ||
+        (r.customer||'').toLowerCase().includes(q) ||
+        (r.sales_document||'').toLowerCase().includes(q) ||
+        (r.customer_group_description||'').toLowerCase().includes(q) ||
+        (r.obd_number||'').toLowerCase().includes(q) ||
+        (r.invoice_num||'').toLowerCase().includes(q) ||
+        (r.customer_reference||'').toLowerCase().includes(q);
+      if(!matchesGlobal) return false;
+    }
+    for(const col in savedColumnFilters){
+      const fv = (savedColumnFilters[col]||'').trim();
+      if(!fv) continue;
+      if(col==='status'){
+        if(computeStatus(r) !== fv) return false;
+      } else {
+        const cellVal = r[col];
+        if(!String(cellVal==null?'':cellVal).toLowerCase().includes(fv.toLowerCase())) return false;
+      }
+    }
+    return true;
+  });
+}
+
+function renderSavedTableHeader(){
   const thead = document.querySelector('#savedTable thead');
-  const tbody = document.querySelector('#savedTable tbody');
   thead.innerHTML = '<tr>' +
     DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
-    `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th>Status</th><th></th></tr>`;
+    `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th>Status</th><th></th></tr>` +
+    '<tr class="filter-row">' +
+    SAVED_TEXT_FILTER_COLS.map(col=>`<th><input type="text" class="col-filter" data-col="${col}" placeholder="Filter..." value="${escapeAttr(savedColumnFilters[col]||'')}"></th>`).join('') +
+    `<th><select class="col-filter" data-col="status">
+        <option value="">All</option>
+        <option value="ON_TIME">Delivered On Time</option>
+        <option value="DELAYED">Delivered But Delayed</option>
+        <option value="CANCELLED">Cancelled</option>
+        <option value="UNDELIVERED">Undelivered</option>
+        <option value="OPEN">Open Order</option>
+      </select></th>` +
+    `<th></th></tr>`;
+  const statusSelect = thead.querySelector('select.col-filter[data-col="status"]');
+  if(statusSelect) statusSelect.value = savedColumnFilters.status || '';
+}
 
-  const q = document.getElementById('searchSaved').value.trim().toLowerCase();
+// Event delegation on the (persistent) thead element — survives header re-renders,
+// and lets column-filter typing only re-render the tbody so the input never loses focus.
+document.querySelector('#savedTable thead').addEventListener('input', (e)=>{
+  if(!e.target.classList.contains('col-filter')) return;
+  savedColumnFilters[e.target.dataset.col] = e.target.value;
+  renderSavedTableBody();
+});
+document.querySelector('#savedTable thead').addEventListener('change', (e)=>{
+  if(!e.target.classList.contains('col-filter')) return;
+  savedColumnFilters[e.target.dataset.col] = e.target.value;
+  renderSavedTableBody();
+});
 
-  let filtered = !q ? savedRows : savedRows.filter(r=>{
-    return (r.customer_name||'').toLowerCase().includes(q) ||
-      (r.customer||'').toLowerCase().includes(q) ||
-      (r.sales_document||'').toLowerCase().includes(q) ||
-      (r.customer_group_description||'').toLowerCase().includes(q) ||
-      (r.obd_number||'').toLowerCase().includes(q) ||
-      (r.invoice_num||'').toLowerCase().includes(q) ||
-      (r.customer_reference||'').toLowerCase().includes(q);
-  });
+function renderSavedTableBody(){
+  const tbody = document.querySelector('#savedTable tbody');
+  const filtered = getFilteredSavedRows();
 
   document.getElementById('savedCount').textContent = filtered.length + ' of ' + savedRows.length + ' rows';
 
   if(!filtered.length){
     tbody.innerHTML = `<tr><td colspan="18"><div class="empty-state"><div class="icon">🗂</div>No records match these filters.</div></td></tr>`;
+    syncTableTopScroll('savedTable');
     return;
   }
 
@@ -738,6 +837,12 @@ function renderSavedTable(){
     const id = tr.dataset.id;
     tr.querySelector('.sv-save').addEventListener('click', ()=>updateSavedRow(id, tr));
   });
+  syncTableTopScroll('savedTable');
+}
+
+function renderSavedTable(){
+  renderSavedTableHeader();
+  renderSavedTableBody();
 }
 
 async function updateSavedRow(id, tr){
@@ -976,8 +1081,8 @@ function parseBulkPaste(){
     return obj;
   });
 
-  renderBulkPreview();
   wrap.classList.remove('hidden');
+  renderBulkPreview();
   const readyCount = bulkParsedRows.filter(r=>r.valid).length;
   saveBtn.disabled = readyCount === 0;
   msg.innerHTML = `<div class="msg ${errCount ? 'info' : 'ok'}">Parsed ${bulkParsedRows.length} row(s): ${readyCount} ready to update${errCount ? `, ${errCount} with issues (see table)` : ''}.</div>`;
@@ -998,6 +1103,7 @@ function renderBulkPreview(){
       <td class="bulk-status"><span class="msg ${statusCls}" style="display:inline-block;padding:2px 9px;margin:0;">${escapeHtml(r.status)}</span></td>
     </tr>`;
   }).join('');
+  syncTableTopScroll('bulkPreviewTable');
 }
 
 document.getElementById('bulkParseBtn').addEventListener('click', parseBulkPaste);
@@ -1172,6 +1278,7 @@ function renderSummary(rows){
   const tbody = document.querySelector('#summaryTable tbody');
   if(!groupNames.length){
     tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">📊</div>No data yet. Import and save orders first.</div></td></tr>`;
+    syncTableTopScroll('summaryTable');
     return;
   }
   tbody.innerHTML = groupNames.map(k=>{
@@ -1196,6 +1303,7 @@ function renderSummary(rows){
       <td>${totals.delayed.toLocaleString()}</td>
       <td>${totals.open.toLocaleString()}</td>
     </tr>`;
+  syncTableTopScroll('summaryTable');
 }
 
 /* ======================= UTIL ======================= */
