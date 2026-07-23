@@ -60,6 +60,8 @@
   html[data-theme="dark"] .pill-btn{color:var(--text);border-color:var(--line);}
   html[data-theme="dark"] .pill-btn:hover{background:var(--pill-bg);}
   html[data-theme="dark"] .pill-btn.active{color:#fff;}
+  html[data-theme="dark"] button.btn.secondary{color:var(--text);}
+  html[data-theme="dark"] button.btn.secondary:hover{background:var(--pill-bg);}
   *{box-sizing:border-box;}
   body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;transition:background .15s,color .15s;}
   .theme-toggle{display:flex;align-items:center;gap:8px;background:none;border:1px solid rgba(255,255,255,0.25);color:#fff;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;font-family:'Inter';}
@@ -156,6 +158,9 @@
   .pill-btn:hover{background:var(--pill-bg);}
   .pill-btn.active{background:var(--teal);border-color:var(--teal);color:#fff;}
   th.sortable{cursor:pointer;user-select:none;}
+  table.ana-report-table thead th{text-align:center;}
+  table.ana-report-table tbody td{text-align:center;}
+  table.ana-report-table tbody td.num{text-align:center;}
   th.sortable:hover{color:var(--navy);}
   th.sortable .sort-arrow{opacity:0.5;margin-left:3px;}
   th.sortable.sorted .sort-arrow{opacity:1;color:var(--teal);}
@@ -339,8 +344,8 @@
         <div><label>Customer</label><input type="text" id="upd_customer"></div>
         <div><label>Customer Name</label><input type="text" id="upd_customer_name"></div>
         <div><label>Delivery Date</label><input type="date" id="upd_delivery_date"></div>
-        <div><label>S.O Amt</label><input type="text" id="upd_so_amt"></div>
-        <div><label>Billed Amount</label><input type="text" id="upd_billed_amount"></div>
+        <div><label>S.O Amt (₱)</label><input type="text" id="upd_so_amt"></div>
+        <div><label>Billed Amount (₱)</label><input type="text" id="upd_billed_amount"></div>
         <div><label>P.O Remarks</label><select id="upd_po_remarks"></select></div>
         <div><label>Reason for Rejection</label><input type="text" id="upd_reason_rejection"></div>
         <div><label>Remarks</label><input type="text" id="upd_remarks"></div>
@@ -440,11 +445,39 @@
           <input type="date" id="anaDateTo">
         </div>
       </div>
+      <div id="anaQuickPeriods" class="hidden" style="margin-bottom:16px;">
+        <label style="margin-bottom:8px;">Quick periods</label>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          <button class="pill-btn" data-ana-period="YTD">YTD</button>
+          <button class="pill-btn" data-ana-period="Q1">Q1</button>
+          <button class="pill-btn" data-ana-period="Q2">Q2</button>
+          <button class="pill-btn" data-ana-period="Q3">Q3</button>
+          <button class="pill-btn" data-ana-period="Q4">Q4</button>
+          <button class="pill-btn" data-ana-period="M0">Jan</button>
+          <button class="pill-btn" data-ana-period="M1">Feb</button>
+          <button class="pill-btn" data-ana-period="M2">Mar</button>
+          <button class="pill-btn" data-ana-period="M3">Apr</button>
+          <button class="pill-btn" data-ana-period="M4">May</button>
+          <button class="pill-btn" data-ana-period="M5">Jun</button>
+          <button class="pill-btn" data-ana-period="M6">Jul</button>
+          <button class="pill-btn" data-ana-period="M7">Aug</button>
+          <button class="pill-btn" data-ana-period="M8">Sep</button>
+          <button class="pill-btn" data-ana-period="M9">Oct</button>
+          <button class="pill-btn" data-ana-period="M10">Nov</button>
+          <button class="pill-btn" data-ana-period="M11">Dec</button>
+        </div>
+      </div>
       <div style="display:flex;gap:10px;">
         <button class="btn" id="anaLoadBtn">Load report</button>
         <button class="btn secondary" id="anaExportBtn" disabled>Export to Excel</button>
       </div>
       <div id="anaMsg" style="margin-top:12px;"></div>
+    </div>
+
+    <div class="panel hidden" id="anaAmPillsPanel">
+      <h2>Filter by AM Sales Name</h2>
+      <div class="desc">Click an AM to narrow every chart, card and table below to just their orders. Click "All AMs" to clear the filter.</div>
+      <div id="anaAmPills" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
     </div>
 
     <div class="summary-cards" id="anaCards"></div>
@@ -469,7 +502,7 @@
       <div class="desc">Click a column header to sort. On-Time Rate is calculated among delivered orders (On Time + Delayed).</div>
       <div class="table-scroll-top" id="anaAmTableScrollTop"><div class="table-scroll-top-inner"></div></div>
       <div class="table-wrap" id="anaAmTableWrap">
-        <table id="anaAmTable"><thead></thead><tbody></tbody></table>
+        <table id="anaAmTable" class="ana-report-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
 
@@ -480,7 +513,7 @@
       </div>
       <div class="table-scroll-top" id="anaCustTopScrollTop"><div class="table-scroll-top-inner"></div></div>
       <div class="table-wrap" id="anaCustTopWrap">
-        <table id="anaCustTopTable"><thead></thead><tbody></tbody></table>
+        <table id="anaCustTopTable" class="ana-report-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
 
@@ -492,7 +525,7 @@
       <div class="desc">Ranked by Cancelled + Delayed + Undelivered order count.</div>
       <div class="table-scroll-top" id="anaCustIssueScrollTop"><div class="table-scroll-top-inner"></div></div>
       <div class="table-wrap" id="anaCustIssueWrap">
-        <table id="anaCustIssueTable"><thead></thead><tbody></tbody></table>
+        <table id="anaCustIssueTable" class="ana-report-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
 
@@ -509,7 +542,7 @@
       </div>
       <div class="table-scroll-top" id="anaReasonScrollTop"><div class="table-scroll-top-inner"></div></div>
       <div class="table-wrap" id="anaReasonWrap">
-        <table id="anaReasonTable"><thead></thead><tbody></tbody></table>
+        <table id="anaReasonTable" class="ana-report-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
 
@@ -521,7 +554,7 @@
       <div class="desc">Average days late (Received Date minus Delivery Date), counted only for orders that arrived late.</div>
       <div class="table-scroll-top" id="anaDelayScrollTop"><div class="table-scroll-top-inner"></div></div>
       <div class="table-wrap" id="anaDelayWrap">
-        <table id="anaDelayTable"><thead></thead><tbody></tbody></table>
+        <table id="anaDelayTable" class="ana-report-table"><thead></thead><tbody></tbody></table>
       </div>
     </div>
   </section>
@@ -654,7 +687,6 @@ function activateTab(btn){
   document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
   if(btn.dataset.tab==='records') loadSavedRows();
   if(btn.dataset.tab==='summary') loadSummary();
-  if(btn.dataset.tab==='analytics' && !anaLoadedOnce){ anaLoadedOnce = true; loadAnalytics(); }
 }
 
 function openPwModal(btn){
@@ -870,7 +902,9 @@ function renderPreviewTable(){
   tbody.innerHTML = stagedRows.map((row, i)=>{
     const cells = DISPLAY_COLS.map(c=>{
       const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
-      return `<td${cls}>${escapeHtml(String(row[c[0]]))}</td>`;
+      const raw = row[c[0]];
+      const display = (c[0]==='so_amt'||c[0]==='billed_amount') && raw!=='' && raw!=null ? fmtPeso(raw) : escapeHtml(String(raw));
+      return `<td${cls}>${display}</td>`;
     }).join('');
     const remarksOptions = buildRemarksOptions(row._po_remarks);
     return `<tr data-idx="${i}">
@@ -1086,7 +1120,7 @@ function renderSavedTableBody(){
     const cells = DISPLAY_COLS.map(c=>{
       const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
       let val = row[c[0]];
-      if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null) val = Number(val).toLocaleString(undefined,{minimumFractionDigits:2});
+      if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null){ val = fmtPeso(val); return `<td${cls}>${val}</td>`; }
       return `<td${cls}>${escapeHtml(val==null?'':String(val))}</td>`;
     }).join('');
     const remarksOptions = buildRemarksOptions(row.po_remarks);
@@ -1536,7 +1570,7 @@ function renderSummary(rows){
 
   document.getElementById('summaryCards').innerHTML = `
     <div class="card"><div class="label">Total Encoded</div><div class="value">${totals.total.toLocaleString()}</div></div>
-    <div class="card"><div class="label">Billed Amount</div><div class="value">${totals.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</div></div>
+    <div class="card"><div class="label">Billed Amount</div><div class="value">${fmtPeso(totals.billed)}</div></div>
     <div class="card accent-green"><div class="label">Delivered On Time</div><div class="value">${totals.onTime.toLocaleString()}</div></div>
     <div class="card accent-red"><div class="label">Cancelled</div><div class="value">${totals.cancelled.toLocaleString()}</div></div>
     <div class="card accent-purple"><div class="label">Undelivered</div><div class="value">${totals.undelivered.toLocaleString()}</div></div>
@@ -1555,7 +1589,7 @@ function renderSummary(rows){
     return `<tr>
       <td>${escapeHtml(k)}</td>
       <td>${g.total.toLocaleString()}</td>
-      <td class="num">${g.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+      <td class="num">${fmtPeso(g.billed)}</td>
       <td>${g.onTime.toLocaleString()}</td>
       <td>${g.cancelled.toLocaleString()}</td>
       <td>${g.undelivered.toLocaleString()}</td>
@@ -1565,7 +1599,7 @@ function renderSummary(rows){
   }).join('') + `<tr style="font-weight:700;background:var(--thead-bg);">
       <td>Grand Total</td>
       <td>${totals.total.toLocaleString()}</td>
-      <td class="num">${totals.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+      <td class="num">${fmtPeso(totals.billed)}</td>
       <td>${totals.onTime.toLocaleString()}</td>
       <td>${totals.cancelled.toLocaleString()}</td>
       <td>${totals.undelivered.toLocaleString()}</td>
@@ -1578,6 +1612,7 @@ function renderSummary(rows){
 /* ======================= ANALYTICS & REPORTS TAB ======================= */
 let anaRangeMode = 'all'; // 'all' | 'custom'
 let anaRows = [];
+let anaSelectedAm = null; // null = All AMs
 let anaLastComputed = null; // cached aggregates, used by the exporter
 const anaCharts = {}; // canvasId -> Chart.js instance, destroyed/recreated on each report load
 const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -1587,14 +1622,66 @@ document.getElementById('anaRangeAllBtn').addEventListener('click', ()=>{
   document.getElementById('anaRangeAllBtn').classList.add('active');
   document.getElementById('anaRangeCustomBtn').classList.remove('active');
   document.getElementById('anaCustomRangeRow').classList.add('hidden');
+  document.getElementById('anaQuickPeriods').classList.add('hidden');
 });
 document.getElementById('anaRangeCustomBtn').addEventListener('click', ()=>{
   anaRangeMode = 'custom';
   document.getElementById('anaRangeCustomBtn').classList.add('active');
   document.getElementById('anaRangeAllBtn').classList.remove('active');
   document.getElementById('anaCustomRangeRow').classList.remove('hidden');
+  document.getElementById('anaQuickPeriods').classList.remove('hidden');
 });
 document.getElementById('anaLoadBtn').addEventListener('click', loadAnalytics);
+
+function applyAnaPeriodPreset(period){
+  const now = new Date();
+  const year = now.getFullYear();
+  let from, to;
+  if(period === 'YTD'){
+    from = new Date(year,0,1);
+    to = now;
+  } else if(period.startsWith('Q')){
+    const q = parseInt(period[1],10);
+    const startMonth = (q-1)*3;
+    from = new Date(year, startMonth, 1);
+    to = new Date(year, startMonth+3, 0);
+  } else if(period.startsWith('M')){
+    const m = parseInt(period.slice(1),10);
+    from = new Date(year, m, 1);
+    to = new Date(year, m+1, 0);
+  }
+  document.getElementById('anaDateFrom').value = toISODate(from);
+  document.getElementById('anaDateTo').value = toISODate(to);
+  document.querySelectorAll('button[data-ana-period]').forEach(b=>b.classList.remove('active'));
+  document.querySelector(`button[data-ana-period="${period}"]`).classList.add('active');
+  loadAnalytics();
+}
+document.querySelectorAll('button[data-ana-period]').forEach(btn=>{
+  btn.addEventListener('click', ()=>applyAnaPeriodPreset(btn.dataset.anaPeriod));
+});
+
+function getAnaFilteredRows(){
+  if(!anaSelectedAm) return anaRows;
+  return anaRows.filter(r=>(r.am_sales_name || '(Unassigned)') === anaSelectedAm);
+}
+
+function buildAnaAmPills(){
+  const panel = document.getElementById('anaAmPillsPanel');
+  const wrap = document.getElementById('anaAmPills');
+  if(!anaRows.length){ panel.classList.add('hidden'); wrap.innerHTML=''; return; }
+  const names = Array.from(new Set(anaRows.map(r=>r.am_sales_name || '(Unassigned)'))).sort((a,b)=>a.localeCompare(b));
+  panel.classList.remove('hidden');
+  wrap.innerHTML = `<button class="pill-btn${anaSelectedAm===null?' active':''}" data-am="">All AMs</button>` +
+    names.map(n=>`<button class="pill-btn${anaSelectedAm===n?' active':''}" data-am="${escapeAttr(n)}">${escapeHtml(n)}</button>`).join('');
+  wrap.querySelectorAll('button[data-am]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      anaSelectedAm = btn.dataset.am || null;
+      wrap.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAnalytics(getAnaFilteredRows());
+    });
+  });
+}
 
 async function loadAnalytics(){
   const msg = document.getElementById('anaMsg');
@@ -1624,7 +1711,9 @@ async function loadAnalytics(){
       ? `${document.getElementById('anaDateFrom').value} to ${document.getElementById('anaDateTo').value}`
       : 'all saved records';
     msg.innerHTML = `<div class="msg ok">Report built from ${anaRows.length} order(s) — ${rangeLabel}.</div>`;
-    renderAnalytics(anaRows);
+    anaSelectedAm = null;
+    buildAnaAmPills();
+    renderAnalytics(getAnaFilteredRows());
     document.getElementById('anaExportBtn').disabled = anaRows.length === 0;
   }catch(err){
     msg.innerHTML = `<div class="msg err">Could not build report: ${escapeHtml(err.message||String(err))}</div>`;
@@ -1759,7 +1848,7 @@ function renderAnalytics(rows){
 
   document.getElementById('anaCards').innerHTML = `
     <div class="card"><div class="label">Total Orders</div><div class="value">${a.cards.total.toLocaleString()}</div></div>
-    <div class="card"><div class="label">Billed Amount</div><div class="value">${a.cards.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</div></div>
+    <div class="card"><div class="label">Billed Amount</div><div class="value">${fmtPeso(a.cards.billed)}</div></div>
     <div class="card accent-green"><div class="label">On-Time Rate</div><div class="value">${fmtPct((a.cards.onTime+a.cards.delayed) ? a.cards.onTime/(a.cards.onTime+a.cards.delayed)*100 : null)}</div></div>
     <div class="card accent-amber"><div class="label">Avg Delay (late orders)</div><div class="value">${fmtDays(a.cards.avgDelay)}</div></div>
     <div class="card accent-red"><div class="label">Cancelled</div><div class="value">${a.cards.cancelled.toLocaleString()}</div></div>
@@ -1907,7 +1996,7 @@ const anaAmTableCtl = createReportTable('anaAmTable', [
 const anaCustTopTableCtl = createReportTable('anaCustTopTable', [
   { key:'customer_name', label:'Customer' },
   { key:'total', label:'Total Orders', numeric:true },
-  { key:'billed', label:'Billed Amount', numeric:true, format:v=>v.toLocaleString(undefined,{minimumFractionDigits:2}) },
+  { key:'billed', label:'Billed Amount', numeric:true, format:v=>fmtPeso(v) },
   { key:'cancelled', label:'Cancelled', numeric:true },
   { key:'delayed', label:'Delayed', numeric:true }
 ]);
@@ -1939,7 +2028,7 @@ document.getElementById('anaExportBtn').addEventListener('click', ()=>{
   const a = anaLastComputed;
   const wb = XLSX.utils.book_new();
 
-  const rawSheet = anaRows.map(r=>({
+  const rawSheet = getAnaFilteredRows().map(r=>({
     'Sales document': r.sales_document, 'Customer': r.customer, 'Customer Name': r.customer_name,
     'Customer Group': r.customer_group_description, 'AM Sales Name': r.am_sales_name,
     'Delivery Date': r.delivery_date, 'Received Date': r.received_date,
@@ -1985,6 +2074,10 @@ function buildRemarksOptions(currentValue){
   const matches = options.some(o => o.toLowerCase() === (currentValue||'').toLowerCase());
   if(currentValue && !matches) options.push(currentValue); // preserve values from uploaded/legacy data
   return options.map(o=>`<option value="${escapeAttr(o)}" ${ (currentValue||'').toLowerCase()===o.toLowerCase() ? 'selected':''}>${o||'—'}</option>`).join('');
+}
+function fmtPeso(v){
+  if(v==null || v==='') return '';
+  return '₱' + Number(v).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2});
 }
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
