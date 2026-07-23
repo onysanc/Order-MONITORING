@@ -1,0 +1,715 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Order Fulfillment Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy:#152A4A;
+    --navy-dark:#0D1B30;
+    --slate:#5A6B87;
+    --teal:#0F8B8D;
+    --teal-light:#E6F5F5;
+    --bg:#F4F6FA;
+    --panel:#FFFFFF;
+    --line:#E1E6EF;
+    --amber:#D98E2B;
+    --red:#C4483C;
+    --green:#2E8B57;
+    --text:#1B2436;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Inter',sans-serif;}
+  header{background:var(--navy);color:#fff;padding:22px 32px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+  header .brand{display:flex;align-items:center;gap:14px;}
+  header .brand .mark{width:34px;height:34px;border-radius:8px;background:var(--teal);display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:700;font-size:16px;}
+  header h1{font-family:'Space Grotesk',sans-serif;font-size:19px;margin:0;font-weight:600;letter-spacing:0.2px;}
+  header .sub{font-size:12px;color:#B9C4D8;margin-top:2px;}
+  .conn{font-size:12px;display:flex;align-items:center;gap:8px;color:#CBD5E6;}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--red);}
+  .dot.ok{background:var(--green);}
+
+  nav.tabs{display:flex;gap:4px;padding:0 32px;background:var(--navy-dark);}
+  nav.tabs button{background:none;border:none;color:#A9B6CC;padding:14px 20px;font-family:'Inter';font-weight:600;font-size:13.5px;cursor:pointer;border-bottom:3px solid transparent;letter-spacing:0.2px;}
+  nav.tabs button.active{color:#fff;border-bottom:3px solid var(--teal);}
+  nav.tabs button:hover{color:#fff;}
+
+  main{padding:28px 32px 60px;max-width:1500px;margin:0 auto;}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:22px;margin-bottom:22px;}
+  .panel h2{font-family:'Space Grotesk';font-size:16px;margin:0 0 4px;}
+  .panel .desc{font-size:13px;color:var(--slate);margin-bottom:16px;}
+
+  .settings-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;}
+  label{font-size:12px;font-weight:600;color:var(--slate);display:block;margin-bottom:5px;text-transform:uppercase;letter-spacing:0.4px;}
+  input[type=text],input[type=password],input[type=date],select,textarea{
+    width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:6px;font-size:13.5px;font-family:'Inter';background:#fff;color:var(--text);
+  }
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--teal);outline-offset:1px;border-color:var(--teal);}
+  button.btn{background:var(--teal);color:#fff;border:none;padding:10px 18px;border-radius:6px;font-weight:600;font-size:13.5px;cursor:pointer;font-family:'Inter';}
+  button.btn:hover{background:#0C6F71;}
+  button.btn.secondary{background:#fff;color:var(--navy);border:1px solid var(--line);}
+  button.btn.secondary:hover{background:#F0F3F8;}
+  button.btn:disabled{opacity:0.5;cursor:not-allowed;}
+  button.btn.danger{background:var(--red);}
+
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:34px;text-align:center;color:var(--slate);cursor:pointer;transition:border-color .15s,background .15s;}
+  .drop:hover, .drop.drag{border-color:var(--teal);background:var(--teal-light);}
+  .drop .icon{font-size:26px;margin-bottom:8px;}
+  .drop .fname{font-family:'IBM Plex Mono';font-size:12.5px;color:var(--navy);margin-top:8px;}
+
+  .table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;min-width:1400px;}
+  thead th{background:#F7F9FC;color:var(--slate);text-transform:uppercase;font-size:10.5px;letter-spacing:0.4px;padding:10px 10px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;}
+  thead th.input-col{background:var(--teal-light);color:#0C6F71;}
+  tbody td{padding:7px 10px;border-bottom:1px solid var(--line);white-space:nowrap;}
+  tbody tr:hover{background:#FAFBFD;}
+  tbody td input, tbody td select{min-width:130px;padding:6px 8px;font-size:12.5px;}
+  tbody td.num{text-align:right;font-family:'IBM Plex Mono';}
+  .badge{display:inline-block;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;}
+  .badge.on-time{background:#E4F4EB;color:var(--green);}
+  .badge.delayed{background:#FBF0DE;color:var(--amber);}
+  .badge.cancelled{background:#FBE9E7;color:var(--red);}
+  .badge.undelivered{background:#F1E7FB;color:#7A4FBF;}
+  .badge.open{background:#E9EEF7;color:var(--navy);}
+
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
+  .toolbar .left{display:flex;gap:10px;align-items:center;}
+  .toolbar input[type=text]{width:240px;}
+  .count-pill{font-size:12px;color:var(--slate);background:#F0F3F8;padding:5px 12px;border-radius:20px;}
+  .msg{font-size:13px;padding:10px 14px;border-radius:6px;margin-bottom:14px;}
+  .msg.ok{background:#E4F4EB;color:#1F6B44;}
+  .msg.err{background:#FBE9E7;color:#A6392E;}
+  .msg.info{background:var(--teal-light);color:#0C6F71;}
+
+  .summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:22px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .card .label{font-size:11px;text-transform:uppercase;letter-spacing:0.4px;color:var(--slate);font-weight:600;}
+  .card .value{font-family:'Space Grotesk';font-size:24px;font-weight:700;margin-top:6px;color:var(--navy);}
+  .card.accent-green .value{color:var(--green);}
+  .card.accent-amber .value{color:var(--amber);}
+  .card.accent-red .value{color:var(--red);}
+  .card.accent-purple .value{color:#7A4FBF;}
+
+  footer.note{font-size:12px;color:var(--slate);text-align:center;padding:20px;}
+  .pill-btn{background:none;border:1px solid var(--line);border-radius:6px;padding:6px 12px;font-size:12px;cursor:pointer;color:var(--navy);font-weight:600;}
+  .pill-btn:hover{background:#F0F3F8;}
+  .hidden{display:none !important;}
+  .spinner{display:inline-block;width:14px;height:14px;border:2px solid #fff;border-top-color:transparent;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-right:6px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .empty-state{text-align:center;padding:50px 20px;color:var(--slate);}
+  .empty-state .icon{font-size:34px;margin-bottom:10px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark">OF</div>
+    <div>
+      <h1>Order Fulfillment Tracker</h1>
+      <div class="sub">Import, encode &amp; monitor delivery performance</div>
+    </div>
+  </div>
+  <div class="conn"><span class="dot" id="connDot"></span><span id="connText">Not connected</span></div>
+</header>
+
+<nav class="tabs">
+  <button class="active" data-tab="import">Import Data</button>
+  <button data-tab="summary">Summary Dashboard</button>
+  <button data-tab="settings">Connection Settings</button>
+</nav>
+
+<main>
+
+  <!-- ===================== SETTINGS TAB ===================== -->
+  <section id="tab-settings" class="tab hidden">
+    <div class="panel">
+      <h2>Supabase Connection</h2>
+      <div class="desc">Paste your Supabase project URL and anon public key. These stay in this browser tab only (nothing is uploaded anywhere else). See the setup notes at the bottom of the page for the required table schema.</div>
+      <div class="settings-grid">
+        <div>
+          <label>Project URL</label>
+          <input type="text" id="sbUrl" placeholder="https://xxxxxxxx.supabase.co">
+        </div>
+        <div>
+          <label>Anon Public Key</label>
+          <input type="password" id="sbKey" placeholder="eyJhbGciOi...">
+        </div>
+        <div>
+          <button class="btn" id="connectBtn">Connect</button>
+        </div>
+      </div>
+      <div id="settingsMsg"></div>
+    </div>
+  </section>
+
+  <!-- ===================== IMPORT TAB ===================== -->
+  <section id="tab-import" class="tab">
+
+    <div class="panel">
+      <h2>1. Upload order data</h2>
+      <div class="desc">Accepts .xlsx, .xls or .csv with these headers: Customer Group Description, Sales Document Type, AM Sales Name, Created on, Sales document, OBD NUMBER, INVOICE NUM, Customer Reference, Customer, Customer Name, DELIVERY DATE, S.O AMT, BILLED AMOUNT.</div>
+      <div class="drop" id="dropZone">
+        <div class="icon">⇪</div>
+        <div>Drag and drop a file here, or click to browse</div>
+        <div class="fname" id="fileName"></div>
+        <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="hidden">
+      </div>
+      <div id="importMsg"></div>
+    </div>
+
+    <div class="panel" id="previewPanel" style="display:none;">
+      <div class="toolbar">
+        <div class="left">
+          <h2 style="margin:0;">2. Review, encode &amp; save</h2>
+          <span class="count-pill" id="rowCount">0 rows</span>
+        </div>
+        <div class="left">
+          <button class="btn secondary" id="applyBulkBtn">Apply P.O Remarks to all</button>
+          <button class="btn" id="saveAllBtn">Save all to database</button>
+        </div>
+      </div>
+      <div id="saveMsg"></div>
+      <div class="table-wrap">
+        <table id="previewTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="toolbar">
+        <div class="left">
+          <h2 style="margin:0;">Saved records</h2>
+          <span class="count-pill" id="savedCount">0 rows</span>
+        </div>
+        <div class="left">
+          <input type="text" id="searchSaved" placeholder="Search customer, sales doc...">
+          <button class="pill-btn" id="refreshSavedBtn">Refresh</button>
+        </div>
+      </div>
+      <div id="savedMsg"></div>
+      <div class="table-wrap">
+        <table id="savedTable">
+          <thead></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ===================== SUMMARY TAB ===================== -->
+  <section id="tab-summary" class="tab hidden">
+    <div class="panel">
+      <div class="toolbar">
+        <h2 style="margin:0;">Delivery performance summary</h2>
+        <button class="pill-btn" id="refreshSummaryBtn">Refresh</button>
+      </div>
+      <div class="desc">Status is derived automatically from Received Date, Delivery Date and P.O Remarks for each order — see the logic note at the bottom of the page.</div>
+      <div id="summaryMsg"></div>
+      <div class="summary-cards" id="summaryCards"></div>
+      <div class="table-wrap">
+        <table id="summaryTable">
+          <thead>
+            <tr>
+              <th>Customer Group Description</th>
+              <th>Total Encoded</th>
+              <th>Billed Amount</th>
+              <th>Delivered On Time</th>
+              <th>Cancelled</th>
+              <th>Undelivered</th>
+              <th>Delivered But Delayed</th>
+              <th>Open Orders</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <footer class="note">
+    Status logic — <b>Cancelled</b>: P.O Remarks = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Delivery Date. <b>Delivered But Delayed</b>: Received Date after Delivery Date. <b>Undelivered</b>: no Received Date and Delivery Date has already passed. <b>Open Orders</b>: no Received Date and Delivery Date is today or in the future. Adjust the <code>computeStatus()</code> function in the page source if your business rule differs.
+  </footer>
+
+</main>
+
+<script>
+/* ======================= CONFIG ======================= */
+// Predefined P.O Remarks dropdown options — edit this list freely.
+const PO_REMARKS_OPTIONS = [
+  "", "Delivered On Time", "Delivered But Delayed", "Cancelled",
+  "Undelivered", "Open Order", "For Rescheduling", "Pending Customer Confirmation", "Others"
+];
+
+// Column mapping: uploaded header text -> database column name
+const COLUMN_MAP = {
+  "Customer Group Description": "customer_group_description",
+  "Sales Document Type": "sales_document_type",
+  "AM Sales Name": "am_sales_name",
+  "Created on": "created_on",
+  "Sales document": "sales_document",
+  "OBD NUMBER": "obd_number",
+  "INVOICE NUM": "invoice_num",
+  "Customer Reference": "customer_reference",
+  "Customer": "customer",
+  "Customer Name": "customer_name",
+  "DELIVERY DATE": "delivery_date",
+  "S.O AMT": "so_amt",
+  "BILLED AMOUNT": "billed_amount"
+};
+const UPLOAD_HEADERS = Object.keys(COLUMN_MAP);
+const TABLE_NAME = "orders";
+
+// Hardcoded Supabase connection (edit these if you change projects/keys)
+const SUPABASE_URL = "https://xwfiobqzgqrazwlklrcb.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_fjn_wPmhcJ-lggDB-9FDTQ_bKFZLc7j";
+
+/* ======================= STATE ======================= */
+let supabase = null;
+let stagedRows = []; // rows parsed from the uploaded file, pending save
+let savedRows = [];  // rows loaded from the database
+
+/* ======================= TAB SWITCHING ======================= */
+document.querySelectorAll('nav.tabs button').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.tab').forEach(t=>t.classList.add('hidden'));
+    document.getElementById('tab-'+btn.dataset.tab).classList.remove('hidden');
+    if(btn.dataset.tab==='import') loadSavedRows();
+    if(btn.dataset.tab==='summary') loadSummary();
+  });
+});
+
+/* ======================= SUPABASE CONNECTION ======================= */
+function setConnected(ok){
+  document.getElementById('connDot').classList.toggle('ok', ok);
+  document.getElementById('connText').textContent = ok ? 'Connected to Supabase' : 'Not connected';
+}
+
+document.getElementById('connectBtn').addEventListener('click', async ()=>{
+  const url = document.getElementById('sbUrl').value.trim();
+  const key = document.getElementById('sbKey').value.trim();
+  const msg = document.getElementById('settingsMsg');
+  if(!url || !key){
+    msg.innerHTML = `<div class="msg err">Please enter both the project URL and anon key.</div>`;
+    return;
+  }
+  try{
+    supabase = window.supabase.createClient(url, key);
+    const { error } = await supabase.from(TABLE_NAME).select('id', { count: 'exact', head:true });
+    if(error) throw error;
+    setConnected(true);
+    msg.innerHTML = `<div class="msg ok">Connected. Table "${TABLE_NAME}" is reachable.</div>`;
+    loadSavedRows();
+  }catch(err){
+    setConnected(false);
+    msg.innerHTML = `<div class="msg err">Could not connect: ${escapeHtml(err.message||String(err))}. Check the URL/key and that the "${TABLE_NAME}" table exists (see schema note below).</div>`;
+  }
+});
+
+async function autoConnect(){
+  document.getElementById('sbUrl').value = SUPABASE_URL;
+  document.getElementById('sbKey').value = SUPABASE_ANON_KEY;
+  const msg = document.getElementById('settingsMsg');
+  try{
+    supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    const { error } = await supabase.from(TABLE_NAME).select('id', { count: 'exact', head:true });
+    if(error) throw error;
+    setConnected(true);
+    msg.innerHTML = `<div class="msg ok">Connected. Table "${TABLE_NAME}" is reachable.</div>`;
+    loadSavedRows();
+  }catch(err){
+    setConnected(false);
+    msg.innerHTML = `<div class="msg err">Could not connect: ${escapeHtml(err.message||String(err))}. Check that the "${TABLE_NAME}" table exists (see schema note below).</div>`;
+  }
+}
+autoConnect();
+
+/* ======================= FILE UPLOAD ======================= */
+const dropZone = document.getElementById('dropZone');
+const fileInput = document.getElementById('fileInput');
+dropZone.addEventListener('click', ()=>fileInput.click());
+dropZone.addEventListener('dragover', e=>{e.preventDefault(); dropZone.classList.add('drag');});
+dropZone.addEventListener('dragleave', ()=>dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop', e=>{
+  e.preventDefault(); dropZone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{
+  if(e.target.files.length) handleFile(e.target.files[0]);
+});
+
+function handleFile(file){
+  document.getElementById('fileName').textContent = file.name;
+  const importMsg = document.getElementById('importMsg');
+  const reader = new FileReader();
+  reader.onload = (e)=>{
+    try{
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array', cellDates:true});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const json = XLSX.utils.sheet_to_json(sheet, {defval:""});
+      if(!json.length){
+        importMsg.innerHTML = `<div class="msg err">No rows found in the file.</div>`;
+        return;
+      }
+      const headers = Object.keys(json[0]);
+      const missing = UPLOAD_HEADERS.filter(h=>!headers.includes(h));
+      if(missing.length){
+        importMsg.innerHTML = `<div class="msg err">Missing expected column(s): ${missing.join(', ')}. Found columns: ${headers.join(', ')}</div>`;
+        return;
+      }
+      stagedRows = json.map(r=>{
+        const row = {};
+        UPLOAD_HEADERS.forEach(h=>{
+          const key = COLUMN_MAP[h];
+          let val = r[h];
+          if(val instanceof Date) val = val.toISOString().slice(0,10);
+          row[key] = (val===undefined||val===null) ? "" : val;
+        });
+        row._po_remarks = "";
+        row._reason_rejection = "";
+        row._remarks = "";
+        row._received_date = "";
+        return row;
+      });
+      importMsg.innerHTML = `<div class="msg ok">Loaded ${stagedRows.length} row(s). Fill in the input columns below, then save.</div>`;
+      renderPreviewTable();
+    }catch(err){
+      importMsg.innerHTML = `<div class="msg err">Could not read file: ${escapeHtml(err.message||String(err))}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ======================= PREVIEW TABLE (staged, editable) ======================= */
+const DISPLAY_COLS = [
+  ["customer_group_description","Customer Group Description"],
+  ["sales_document_type","Sales Document Type"],
+  ["am_sales_name","AM Sales Name"],
+  ["created_on","Created on"],
+  ["sales_document","Sales document"],
+  ["obd_number","OBD Number"],
+  ["invoice_num","Invoice Num"],
+  ["customer_reference","Customer Reference"],
+  ["customer","Customer"],
+  ["customer_name","Customer Name"],
+  ["delivery_date","Delivery Date"],
+  ["so_amt","S.O Amt"],
+  ["billed_amount","Billed Amount"],
+];
+
+function renderPreviewTable(){
+  document.getElementById('previewPanel').style.display = stagedRows.length ? 'block' : 'none';
+  document.getElementById('rowCount').textContent = stagedRows.length + ' rows';
+  const thead = document.querySelector('#previewTable thead');
+  const tbody = document.querySelector('#previewTable tbody');
+  thead.innerHTML = '<tr>' +
+    DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
+    `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th></th></tr>`;
+
+  tbody.innerHTML = stagedRows.map((row, i)=>{
+    const cells = DISPLAY_COLS.map(c=>{
+      const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
+      return `<td${cls}>${escapeHtml(String(row[c[0]]))}</td>`;
+    }).join('');
+    const remarksOptions = PO_REMARKS_OPTIONS.map(o=>`<option value="${o}" ${row._po_remarks===o?'selected':''}>${o||'—'}</option>`).join('');
+    return `<tr data-idx="${i}">
+      ${cells}
+      <td><select class="stg-po">${remarksOptions}</select></td>
+      <td><input type="text" class="stg-reason" value="${escapeAttr(row._reason_rejection)}" placeholder="Free text"></td>
+      <td><input type="text" class="stg-remarks" value="${escapeAttr(row._remarks)}" placeholder="Free text"></td>
+      <td><input type="date" class="stg-received" value="${row._received_date}"></td>
+      <td></td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(tr=>{
+    const idx = +tr.dataset.idx;
+    tr.querySelector('.stg-po').addEventListener('change', e=>stagedRows[idx]._po_remarks = e.target.value);
+    tr.querySelector('.stg-reason').addEventListener('input', e=>stagedRows[idx]._reason_rejection = e.target.value);
+    tr.querySelector('.stg-remarks').addEventListener('input', e=>stagedRows[idx]._remarks = e.target.value);
+    tr.querySelector('.stg-received').addEventListener('change', e=>stagedRows[idx]._received_date = e.target.value);
+  });
+}
+
+document.getElementById('applyBulkBtn').addEventListener('click', ()=>{
+  if(!stagedRows.length) return;
+  const value = prompt('Apply which P.O Remarks value to every row in this batch?\n(' + PO_REMARKS_OPTIONS.filter(Boolean).join(', ') + ')');
+  if(value===null) return;
+  stagedRows.forEach(r=>r._po_remarks = value.trim());
+  renderPreviewTable();
+});
+
+document.getElementById('saveAllBtn').addEventListener('click', saveStagedRows);
+
+async function saveStagedRows(){
+  const saveMsg = document.getElementById('saveMsg');
+  if(!supabase){
+    saveMsg.innerHTML = `<div class="msg err">Not connected to Supabase. Go to "Connection Settings" first.</div>`;
+    return;
+  }
+  if(!stagedRows.length) return;
+  const btn = document.getElementById('saveAllBtn');
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Saving...`;
+  const payload = stagedRows.map(r=>({
+    customer_group_description: r.customer_group_description || null,
+    sales_document_type: r.sales_document_type || null,
+    am_sales_name: r.am_sales_name || null,
+    created_on: r.created_on || null,
+    sales_document: r.sales_document || null,
+    obd_number: r.obd_number || null,
+    invoice_num: r.invoice_num || null,
+    customer_reference: r.customer_reference || null,
+    customer: r.customer || null,
+    customer_name: r.customer_name || null,
+    delivery_date: r.delivery_date || null,
+    so_amt: r.so_amt === "" ? null : Number(r.so_amt),
+    billed_amount: r.billed_amount === "" ? null : Number(r.billed_amount),
+    po_remarks: r._po_remarks || null,
+    reason_rejection: r._reason_rejection || null,
+    remarks: r._remarks || null,
+    received_date: r._received_date || null
+  }));
+  try{
+    // upsert on sales_document so re-uploading the same order updates it rather than duplicating
+    const { error } = await supabase.from(TABLE_NAME).upsert(payload, { onConflict: 'sales_document' });
+    if(error) throw error;
+    saveMsg.innerHTML = `<div class="msg ok">Saved ${payload.length} row(s) to the database.</div>`;
+    stagedRows = [];
+    renderPreviewTable();
+    document.getElementById('fileName').textContent = '';
+    fileInput.value = '';
+    loadSavedRows();
+  }catch(err){
+    saveMsg.innerHTML = `<div class="msg err">Save failed: ${escapeHtml(err.message||String(err))}</div>`;
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Save all to database';
+  }
+}
+
+/* ======================= SAVED RECORDS TABLE (from DB, editable) ======================= */
+async function loadSavedRows(){
+  const savedMsg = document.getElementById('savedMsg');
+  if(!supabase){
+    savedMsg.innerHTML = `<div class="msg info">Connect to Supabase in "Connection Settings" to view saved records.</div>`;
+    savedRows = [];
+    renderSavedTable();
+    return;
+  }
+  savedMsg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
+  try{
+    const { data, error } = await supabase.from(TABLE_NAME).select('*').order('created_on', {ascending:false});
+    if(error) throw error;
+    savedRows = data || [];
+    savedMsg.innerHTML = '';
+    renderSavedTable();
+  }catch(err){
+    savedMsg.innerHTML = `<div class="msg err">Could not load records: ${escapeHtml(err.message||String(err))}</div>`;
+  }
+}
+document.getElementById('refreshSavedBtn').addEventListener('click', loadSavedRows);
+document.getElementById('searchSaved').addEventListener('input', renderSavedTable);
+
+function renderSavedTable(){
+  const thead = document.querySelector('#savedTable thead');
+  const tbody = document.querySelector('#savedTable tbody');
+  document.getElementById('savedCount').textContent = savedRows.length + ' rows';
+  thead.innerHTML = '<tr>' +
+    DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
+    `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th>Status</th><th></th></tr>`;
+
+  const q = document.getElementById('searchSaved').value.trim().toLowerCase();
+  const filtered = !q ? savedRows : savedRows.filter(r=>
+    (r.customer_name||'').toLowerCase().includes(q) ||
+    (r.customer||'').toLowerCase().includes(q) ||
+    (r.sales_document||'').toLowerCase().includes(q) ||
+    (r.customer_group_description||'').toLowerCase().includes(q)
+  );
+
+  if(!filtered.length){
+    tbody.innerHTML = `<tr><td colspan="18"><div class="empty-state"><div class="icon">🗂</div>No saved records yet.</div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = filtered.map((row)=>{
+    const cells = DISPLAY_COLS.map(c=>{
+      const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
+      let val = row[c[0]];
+      if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null) val = Number(val).toLocaleString(undefined,{minimumFractionDigits:2});
+      return `<td${cls}>${escapeHtml(val==null?'':String(val))}</td>`;
+    }).join('');
+    const remarksOptions = PO_REMARKS_OPTIONS.map(o=>`<option value="${o}" ${row.po_remarks===o?'selected':''}>${o||'—'}</option>`).join('');
+    const status = computeStatus(row);
+    return `<tr data-id="${row.id}">
+      ${cells}
+      <td><select class="sv-po">${remarksOptions}</select></td>
+      <td><input type="text" class="sv-reason" value="${escapeAttr(row.reason_rejection||'')}"></td>
+      <td><input type="text" class="sv-remarks" value="${escapeAttr(row.remarks||'')}"></td>
+      <td><input type="date" class="sv-received" value="${row.received_date||''}"></td>
+      <td>${statusBadge(status)}</td>
+      <td><button class="pill-btn sv-save">Update</button></td>
+    </tr>`;
+  }).join('');
+
+  tbody.querySelectorAll('tr').forEach(tr=>{
+    const id = tr.dataset.id;
+    tr.querySelector('.sv-save').addEventListener('click', ()=>updateSavedRow(id, tr));
+  });
+}
+
+async function updateSavedRow(id, tr){
+  if(!supabase) return;
+  const btn = tr.querySelector('.sv-save');
+  btn.disabled = true;
+  btn.textContent = 'Saving...';
+  const update = {
+    po_remarks: tr.querySelector('.sv-po').value || null,
+    reason_rejection: tr.querySelector('.sv-reason').value || null,
+    remarks: tr.querySelector('.sv-remarks').value || null,
+    received_date: tr.querySelector('.sv-received').value || null
+  };
+  try{
+    const { error } = await supabase.from(TABLE_NAME).update(update).eq('id', id);
+    if(error) throw error;
+    const row = savedRows.find(r=>String(r.id)===String(id));
+    if(row) Object.assign(row, update);
+    btn.textContent = 'Updated ✓';
+    setTimeout(()=>{ btn.textContent='Update'; btn.disabled=false; }, 1200);
+  }catch(err){
+    alert('Update failed: ' + (err.message||err));
+    btn.textContent = 'Update';
+    btn.disabled = false;
+  }
+}
+
+/* ======================= STATUS LOGIC ======================= */
+function computeStatus(row){
+  const remarks = (row.po_remarks||'').trim().toLowerCase();
+  if(remarks === 'cancelled') return 'CANCELLED';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const delivery = row.delivery_date ? new Date(row.delivery_date) : null;
+  const received = row.received_date ? new Date(row.received_date) : null;
+  if(received){
+    if(delivery && received > delivery) return 'DELAYED';
+    return 'ON_TIME';
+  }
+  if(delivery && delivery < today) return 'UNDELIVERED';
+  return 'OPEN';
+}
+function statusBadge(status){
+  const map = {
+    ON_TIME: ['on-time','Delivered On Time'],
+    DELAYED: ['delayed','Delivered But Delayed'],
+    CANCELLED: ['cancelled','Cancelled'],
+    UNDELIVERED: ['undelivered','Undelivered'],
+    OPEN: ['open','Open Order']
+  };
+  const [cls,label] = map[status];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+/* ======================= SUMMARY TAB ======================= */
+async function loadSummary(){
+  const msg = document.getElementById('summaryMsg');
+  if(!supabase){
+    msg.innerHTML = `<div class="msg info">Connect to Supabase in "Connection Settings" to view the summary.</div>`;
+    document.getElementById('summaryCards').innerHTML = '';
+    document.querySelector('#summaryTable tbody').innerHTML = '';
+    return;
+  }
+  msg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
+  try{
+    const { data, error } = await supabase.from(TABLE_NAME).select('*');
+    if(error) throw error;
+    msg.innerHTML = '';
+    renderSummary(data || []);
+  }catch(err){
+    msg.innerHTML = `<div class="msg err">Could not load summary: ${escapeHtml(err.message||String(err))}</div>`;
+  }
+}
+document.getElementById('refreshSummaryBtn').addEventListener('click', loadSummary);
+
+function renderSummary(rows){
+  const groups = {};
+  rows.forEach(r=>{
+    const key = r.customer_group_description || 'Unspecified';
+    if(!groups[key]) groups[key] = {
+      total:0, billed:0, onTime:0, cancelled:0, undelivered:0, delayed:0, open:0
+    };
+    const g = groups[key];
+    g.total++;
+    g.billed += Number(r.billed_amount)||0;
+    const status = computeStatus(r);
+    if(status==='ON_TIME') g.onTime++;
+    else if(status==='DELAYED') g.delayed++;
+    else if(status==='CANCELLED') g.cancelled++;
+    else if(status==='UNDELIVERED') g.undelivered++;
+    else if(status==='OPEN') g.open++;
+  });
+
+  const groupNames = Object.keys(groups).sort();
+  const totals = { total:0, billed:0, onTime:0, cancelled:0, undelivered:0, delayed:0, open:0 };
+  groupNames.forEach(k=>{
+    const g = groups[k];
+    Object.keys(totals).forEach(f=>totals[f]+=g[f]);
+  });
+
+  document.getElementById('summaryCards').innerHTML = `
+    <div class="card"><div class="label">Total Encoded</div><div class="value">${totals.total.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Billed Amount</div><div class="value">${totals.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</div></div>
+    <div class="card accent-green"><div class="label">Delivered On Time</div><div class="value">${totals.onTime.toLocaleString()}</div></div>
+    <div class="card accent-red"><div class="label">Cancelled</div><div class="value">${totals.cancelled.toLocaleString()}</div></div>
+    <div class="card accent-purple"><div class="label">Undelivered</div><div class="value">${totals.undelivered.toLocaleString()}</div></div>
+    <div class="card accent-amber"><div class="label">Delivered But Delayed</div><div class="value">${totals.delayed.toLocaleString()}</div></div>
+    <div class="card"><div class="label">Open Orders</div><div class="value">${totals.open.toLocaleString()}</div></div>
+  `;
+
+  const tbody = document.querySelector('#summaryTable tbody');
+  if(!groupNames.length){
+    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">📊</div>No data yet. Import and save orders first.</div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = groupNames.map(k=>{
+    const g = groups[k];
+    return `<tr>
+      <td>${escapeHtml(k)}</td>
+      <td>${g.total.toLocaleString()}</td>
+      <td class="num">${g.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+      <td>${g.onTime.toLocaleString()}</td>
+      <td>${g.cancelled.toLocaleString()}</td>
+      <td>${g.undelivered.toLocaleString()}</td>
+      <td>${g.delayed.toLocaleString()}</td>
+      <td>${g.open.toLocaleString()}</td>
+    </tr>`;
+  }).join('') + `<tr style="font-weight:700;background:#F7F9FC;">
+      <td>Grand Total</td>
+      <td>${totals.total.toLocaleString()}</td>
+      <td class="num">${totals.billed.toLocaleString(undefined,{minimumFractionDigits:2})}</td>
+      <td>${totals.onTime.toLocaleString()}</td>
+      <td>${totals.cancelled.toLocaleString()}</td>
+      <td>${totals.undelivered.toLocaleString()}</td>
+      <td>${totals.delayed.toLocaleString()}</td>
+      <td>${totals.open.toLocaleString()}</td>
+    </tr>`;
+}
+
+/* ======================= UTIL ======================= */
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function escapeAttr(str){ return escapeHtml(str); }
+</script>
+</body>
+</html>
