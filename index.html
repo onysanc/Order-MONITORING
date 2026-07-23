@@ -234,7 +234,7 @@
   </section>
 
   <footer class="note">
-    Status logic — <b>Cancelled</b>: P.O Remarks = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Delivery Date. <b>Delivered But Delayed</b>: Received Date after Delivery Date. <b>Undelivered</b>: no Received Date and Delivery Date has already passed. <b>Open Orders</b>: no Received Date and Delivery Date is today or in the future. Adjust the <code>computeStatus()</code> function in the page source if your business rule differs.
+    Status logic — <b>Cancelled</b>: P.O Remarks = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Delivery Date. <b>Delivered But Delayed</b>: Received Date after Delivery Date. <b>Undelivered</b>: no Received Date and P.O Remarks = "Undelivered" (explicitly flagged). <b>Open Orders</b>: no Received Date and not flagged as Cancelled or Undelivered — regardless of whether the Delivery Date has passed. Adjust the <code>computeStatus()</code> function in the page source if your business rule differs.
   </footer>
 
 </main>
@@ -667,14 +667,16 @@ async function updateSavedRow(id, tr){
 function computeStatus(row){
   const remarks = (row.po_remarks||'').trim().toLowerCase();
   if(remarks === 'cancelled') return 'CANCELLED';
-  const today = new Date(); today.setHours(0,0,0,0);
   const delivery = row.delivery_date ? new Date(row.delivery_date) : null;
   const received = row.received_date ? new Date(row.received_date) : null;
   if(received){
     if(delivery && received > delivery) return 'DELAYED';
     return 'ON_TIME';
   }
-  if(delivery && delivery < today) return 'UNDELIVERED';
+  // No received date yet: only counts as Undelivered if explicitly flagged via P.O Remarks.
+  // Otherwise it stays an Open Order regardless of whether the delivery date has passed,
+  // since a past-due delivery date alone doesn't confirm the order failed to deliver.
+  if(remarks === 'undelivered') return 'UNDELIVERED';
   return 'OPEN';
 }
 function statusBadge(status){
