@@ -171,11 +171,9 @@
           <h2 style="margin:0;">All saved records</h2>
           <span class="count-pill" id="savedCount">0 rows</span>
         </div>
-        <div class="left">
-          <button class="pill-btn" id="refreshSavedBtn">Refresh</button>
-        </div>
       </div>
-      <div class="settings-grid" style="grid-template-columns:1fr 1fr 1fr auto;margin-bottom:16px;">
+      <div class="desc">Select a Delivery Date range (31 days max) and click Search. Records only load once both dates are filled in.</div>
+      <div class="settings-grid" style="grid-template-columns:1fr 1fr 1fr auto auto;margin-bottom:16px;">
         <div>
           <label>Delivery Date From</label>
           <input type="date" id="filterDateFrom">
@@ -185,11 +183,14 @@
           <input type="date" id="filterDateTo">
         </div>
         <div>
-          <label>Search</label>
-          <input type="text" id="searchSaved" placeholder="Customer, sales doc, group...">
+          <label>Search text</label>
+          <input type="text" id="searchSaved" placeholder="Customer, sales doc, group..." disabled>
         </div>
         <div>
-          <button class="btn secondary" id="clearFiltersBtn">Clear filters</button>
+          <button class="btn" id="applyDateFilterBtn">Search</button>
+        </div>
+        <div>
+          <button class="btn secondary" id="clearFiltersBtn">Clear</button>
         </div>
       </div>
       <div id="savedMsg"></div>
@@ -294,12 +295,16 @@ function setConnected(ok){
 
 // Supabase caps each response at 1000 rows by default, so page through with .range()
 // until a page comes back short, to reliably fetch every row in the table.
-async function fetchAllRows(orderCol, ascending){
+async function fetchAllRows(orderCol, ascending, filters){
   const pageSize = 1000;
   let all = [];
   let from = 0;
   while(true){
     let q = supabaseClient.from(TABLE_NAME).select('*');
+    if(filters){
+      if(filters.gte) q = q.gte(filters.gte[0], filters.gte[1]);
+      if(filters.lte) q = q.lte(filters.lte[0], filters.lte[1]);
+    }
     if(orderCol) q = q.order(orderCol, { ascending });
     q = q.range(from, from + pageSize - 1);
     const { data, error } = await q;
@@ -523,31 +528,61 @@ async function saveStagedRows(){
 }
 
 /* ======================= SAVED RECORDS TABLE (from DB, editable) ======================= */
+const MAX_RANGE_DAYS = 31;
+
+function daysBetween(a, b){
+  const d1 = new Date(a), d2 = new Date(b);
+  return Math.round((d2 - d1) / 86400000);
+}
+
 async function loadSavedRows(){
   const savedMsg = document.getElementById('savedMsg');
+  const dateFrom = document.getElementById('filterDateFrom').value;
+  const dateTo = document.getElementById('filterDateTo').value;
+  const searchInput = document.getElementById('searchSaved');
+
+  if(!dateFrom || !dateTo){
+    savedMsg.innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To", then click Search.</div>`;
+    savedRows = [];
+    searchInput.disabled = true;
+    renderSavedTable();
+    return;
+  }
+  if(dateFrom > dateTo){
+    savedMsg.innerHTML = `<div class="msg err">"Delivery Date From" must be on or before "Delivery Date To".</div>`;
+    return;
+  }
+  const spanDays = daysBetween(dateFrom, dateTo) + 1; // inclusive of both end dates
+  if(spanDays > MAX_RANGE_DAYS){
+    savedMsg.innerHTML = `<div class="msg err">Date range is ${spanDays} days — please narrow it to ${MAX_RANGE_DAYS} days or less.</div>`;
+    return;
+  }
   if(!supabaseClient){
     savedMsg.innerHTML = `<div class="msg info">Not connected to Supabase.</div>`;
     savedRows = [];
     renderSavedTable();
     return;
   }
+
   savedMsg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
   try{
-    savedRows = await fetchAllRows('created_on', false);
-    savedMsg.innerHTML = '';
+    savedRows = await fetchAllRows('delivery_date', false, { gte:['delivery_date', dateFrom], lte:['delivery_date', dateTo] });
+    savedMsg.innerHTML = `<div class="msg ok">Loaded ${savedRows.length} row(s) for ${dateFrom} to ${dateTo}.</div>`;
+    searchInput.disabled = false;
     renderSavedTable();
   }catch(err){
     savedMsg.innerHTML = `<div class="msg err">Could not load records: ${escapeHtml(err.message||String(err))}</div>`;
   }
 }
-document.getElementById('refreshSavedBtn').addEventListener('click', loadSavedRows);
+document.getElementById('applyDateFilterBtn').addEventListener('click', loadSavedRows);
 document.getElementById('searchSaved').addEventListener('input', renderSavedTable);
-document.getElementById('filterDateFrom').addEventListener('change', renderSavedTable);
-document.getElementById('filterDateTo').addEventListener('change', renderSavedTable);
 document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
   document.getElementById('filterDateFrom').value = '';
   document.getElementById('filterDateTo').value = '';
   document.getElementById('searchSaved').value = '';
+  document.getElementById('searchSaved').disabled = true;
+  savedRows = [];
+  document.getElementById('savedMsg').innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To", then click Search.</div>`;
   renderSavedTable();
 });
 
@@ -559,23 +594,15 @@ function renderSavedTable(){
     `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th>Status</th><th></th></tr>`;
 
   const q = document.getElementById('searchSaved').value.trim().toLowerCase();
-  const dateFrom = document.getElementById('filterDateFrom').value; // yyyy-mm-dd or ''
-  const dateTo = document.getElementById('filterDateTo').value;
 
-  let filtered = savedRows.filter(r=>{
-    if(dateFrom && (!r.delivery_date || r.delivery_date < dateFrom)) return false;
-    if(dateTo && (!r.delivery_date || r.delivery_date > dateTo)) return false;
-    if(q){
-      const hit = (r.customer_name||'').toLowerCase().includes(q) ||
-        (r.customer||'').toLowerCase().includes(q) ||
-        (r.sales_document||'').toLowerCase().includes(q) ||
-        (r.customer_group_description||'').toLowerCase().includes(q) ||
-        (r.obd_number||'').toLowerCase().includes(q) ||
-        (r.invoice_num||'').toLowerCase().includes(q) ||
-        (r.customer_reference||'').toLowerCase().includes(q);
-      if(!hit) return false;
-    }
-    return true;
+  let filtered = !q ? savedRows : savedRows.filter(r=>{
+    return (r.customer_name||'').toLowerCase().includes(q) ||
+      (r.customer||'').toLowerCase().includes(q) ||
+      (r.sales_document||'').toLowerCase().includes(q) ||
+      (r.customer_group_description||'').toLowerCase().includes(q) ||
+      (r.obd_number||'').toLowerCase().includes(q) ||
+      (r.invoice_num||'').toLowerCase().includes(q) ||
+      (r.customer_reference||'').toLowerCase().includes(q);
   });
 
   document.getElementById('savedCount').textContent = filtered.length + ' of ' + savedRows.length + ' rows';
