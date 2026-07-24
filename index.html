@@ -2129,7 +2129,20 @@ async function loadSummary(){
   msg.innerHTML = `<div class="msg info"><span class="spinner" style="border-top-color:transparent;border-color:#0F8B8D;"></span>Loading...</div>`;
   try{
     const data = await fetchAllRows(null, null, { gte:['delivery_date', dateFrom], lte:['delivery_date', dateTo] });
-    msg.innerHTML = `<div class="msg ok">Showing ${data.length} order(s) for ${dateFrom} to ${dateTo}.</div>`;
+    // Diagnostic: show exactly how many of the loaded rows actually have a Received Date
+    // on file, and how many that computeStatus() is counting as delivered. If these two
+    // numbers don't match, it's a classification bug (check console for sample rows). If
+    // "have a Received Date" is itself 0, the data for this specific date range genuinely
+    // has no Received Date saved yet — that's a data-entry gap, not a code bug.
+    const withReceived = data.filter(r=>r.received_date);
+    const classifiedDelivered = data.filter(r=>{ const s=computeStatus(r); return s==='ON_TIME'||s==='DELAYED'; });
+    let diagMsg = `Showing ${data.length} order(s) for ${dateFrom} to ${dateTo}. ${withReceived.length} have a Received Date on file, ${classifiedDelivered.length} counted as Delivered.`;
+    if(withReceived.length !== classifiedDelivered.length){
+      diagMsg += ` ⚠ Mismatch — open the browser console (F12) for sample rows.`;
+      console.warn('[Summary diagnostic] Rows with a Received Date that are NOT classified as delivered:',
+        withReceived.filter(r=>{ const s=computeStatus(r); return s!=='ON_TIME' && s!=='DELAYED'; }).slice(0,10));
+    }
+    msg.innerHTML = `<div class="msg ok">${diagMsg}</div>`;
     renderSummary(data || []);
   }catch(err){
     msg.innerHTML = `<div class="msg err">Could not load summary: ${escapeHtml(err.message||String(err))}</div>`;
