@@ -171,9 +171,10 @@
   .msg.info{background:var(--teal-light);color:#0C6F71;}
 
   .summary-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px;margin-bottom:22px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;min-width:0;}
   .card .label{font-size:11px;text-transform:uppercase;letter-spacing:0.4px;color:var(--slate);font-weight:600;}
-  .card .value{font-family:'Space Grotesk';font-size:24px;font-weight:700;margin-top:6px;color:var(--navy);}
+  .card .value{font-family:'Space Grotesk';font-size:24px;font-weight:700;margin-top:6px;color:var(--navy);overflow-wrap:break-word;word-break:break-word;}
+  .card .value.fit-text{font-size:clamp(15px,3.6vw,24px);white-space:nowrap;}
   .card.accent-green .value{color:var(--green);}
   .card.accent-amber .value{color:var(--amber);}
   .card.accent-red .value{color:var(--red);}
@@ -1918,7 +1919,7 @@ function renderSummary(rows){
 
   document.getElementById('summaryCards').innerHTML = `
     <div class="card"><div class="label">Total Encoded</div><div class="value">${totals.total.toLocaleString()}</div></div>
-    <div class="card"><div class="label">Billed Amount</div><div class="value">${fmtPeso(totals.billed)}</div></div>
+    <div class="card"><div class="label">Billed Amount</div><div class="value fit-text">${fmtPeso(totals.billed)}</div></div>
     <div class="card accent-green"><div class="label">Delivered On Time</div><div class="value">${totals.onTime.toLocaleString()}</div></div>
     <div class="card accent-red"><div class="label">Cancelled</div><div class="value">${totals.cancelled.toLocaleString()}</div></div>
     <div class="card accent-purple"><div class="label">Undelivered</div><div class="value">${totals.undelivered.toLocaleString()}</div></div>
@@ -2212,7 +2213,7 @@ function renderAnalytics(rows){
 
   document.getElementById('anaCards').innerHTML = `
     <div class="card"><div class="label">Total Orders</div><div class="value">${a.cards.total.toLocaleString()}</div></div>
-    <div class="card"><div class="label">Billed Amount</div><div class="value">${fmtPeso(a.cards.billed)}</div></div>
+    <div class="card"><div class="label">Billed Amount</div><div class="value fit-text">${fmtPeso(a.cards.billed)}</div></div>
     <div class="card accent-green"><div class="label">On-Time Rate</div><div class="value">${fmtPct((a.cards.onTime+a.cards.delayed) ? a.cards.onTime/(a.cards.onTime+a.cards.delayed)*100 : null)}</div></div>
     <div class="card accent-amber"><div class="label">Avg Delay (late orders)</div><div class="value">${fmtDays(a.cards.avgDelay)}</div></div>
     <div class="card accent-red"><div class="label">Cancelled</div><div class="value">${a.cards.cancelled.toLocaleString()}</div></div>
