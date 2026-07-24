@@ -261,7 +261,7 @@
 
     <div class="panel">
       <h2>1. Upload order data</h2>
-      <div class="desc">Accepts .xlsx, .xls or .csv with these headers: Customer Group Description, Sales Document Type, AM Sales Name, Created on, Sales document, OBD NUMBER, INVOICE NUM, Customer Reference, Customer, Customer Name, DELIVERY DATE, S.O AMT, BILLED AMOUNT.</div>
+      <div class="desc">Accepts .xlsx, .xls or .csv with these headers: Customer Group Description, Sales Document Type, AM Sales Name, Created on, Sales document, OBD NUMBER, INVOICE NUM, Customer Reference, Customer, Customer Name, DELIVERY DATE (Requested Deliv.Date), S.O AMT, BILLED AMOUNT. PGI Date, Received Date, OBD Status, OBD Remarks, Rejection Remarks, OMR Remarks, Encoded By and Plant are optional — fill them in below or add them later via Update Record.</div>
       <div class="drop" id="dropZone">
         <div class="icon">⇪</div>
         <div>Drag and drop a file here, or click to browse</div>
@@ -278,7 +278,7 @@
           <span class="count-pill" id="rowCount">0 rows</span>
         </div>
         <div class="left">
-          <button class="btn secondary" id="applyBulkBtn">Apply P.O Remarks to all</button>
+          <button class="btn secondary" id="applyBulkBtn">Apply OBD Status to all</button>
           <button class="btn" id="saveAllBtn">Save all to database</button>
         </div>
       </div>
@@ -307,14 +307,14 @@
           <button class="pill-btn hidden" id="recordsSwitchEditBtn" type="button">Switch to edit mode</button>
         </div>
       </div>
-      <div class="desc">Select a Delivery Date range (31 days max) and click Search. Records only load once both dates are filled in.</div>
+      <div class="desc">Select a Requested Deliv.Date range (31 days max) and click Search. Records only load once both dates are filled in.</div>
       <div class="settings-grid" style="grid-template-columns:1fr 1fr 1fr auto auto;margin-bottom:16px;">
         <div>
-          <label>Delivery Date From</label>
+          <label>Requested Deliv.Date From</label>
           <input type="date" id="filterDateFrom">
         </div>
         <div>
-          <label>Delivery Date To</label>
+          <label>Requested Deliv.Date To</label>
           <input type="date" id="filterDateTo">
         </div>
         <div>
@@ -358,9 +358,9 @@
 
     <div class="panel">
       <h2>Bulk update — paste from Excel</h2>
-      <div class="desc">Copy rows straight from Excel (header row + data rows) using <b>Sales document</b> as the match key, then paste below. Columns expected: Sales document, P.O REMARKS, reason rejection, REMARKS, received date. Multiple rows are supported.</div>
-      <textarea id="bulkPasteInput" rows="6" placeholder="Sales document	P.O REMARKS	reason rejection	REMARKS	received date
-4810333654	DELIVERED		okay	3/10/2026" style="font-family:'IBM Plex Mono',monospace;font-size:12px;"></textarea>
+      <div class="desc">Copy rows straight from Excel (header row + data rows) using <b>Sales document</b> as the match key, then paste below. Columns expected: Sales document, PGI Date, Received Date, OBD Status, OBD Remarks, Rejection Remarks, OMR Remarks, Encoded By, Plant. Multiple rows are supported.</div>
+      <textarea id="bulkPasteInput" rows="6" placeholder="Sales document	PGI Date	Received Date	OBD Status	OBD Remarks	Rejection Remarks	OMR Remarks	Encoded By	Plant
+4810333654	3/8/2026	3/10/2026	DELIVERED	okay			" style="font-family:'IBM Plex Mono',monospace;font-size:12px;"></textarea>
       <div style="margin-top:10px;display:flex;gap:10px;">
         <button class="btn secondary" id="bulkParseBtn">Parse pasted data</button>
         <button class="btn" id="bulkSaveBtn" disabled>Update all matching records</button>
@@ -393,13 +393,17 @@
         <div><label>Customer Reference</label><input type="text" id="upd_customer_reference"></div>
         <div><label>Customer</label><input type="text" id="upd_customer"></div>
         <div><label>Customer Name</label><input type="text" id="upd_customer_name"></div>
-        <div><label>Delivery Date</label><input type="date" id="upd_delivery_date"></div>
+        <div><label>Requested Deliv.Date</label><input type="date" id="upd_delivery_date"></div>
         <div><label>S.O Amt (₱)</label><input type="text" id="upd_so_amt"></div>
         <div><label>Billed Amount (₱)</label><input type="text" id="upd_billed_amount"></div>
-        <div><label>P.O Remarks</label><select id="upd_po_remarks"></select></div>
-        <div><label>Reason for Rejection</label><input type="text" id="upd_reason_rejection"></div>
-        <div><label>Remarks</label><input type="text" id="upd_remarks"></div>
+        <div><label>PGI Date</label><input type="date" id="upd_pgi_date"></div>
         <div><label>Received Date</label><input type="date" id="upd_received_date"></div>
+        <div><label>OBD Status</label><select id="upd_po_remarks"></select></div>
+        <div><label>OBD Remarks</label><input type="text" id="upd_remarks"></div>
+        <div><label>Rejection Remarks</label><input type="text" id="upd_reason_rejection"></div>
+        <div><label>OMR Remarks</label><input type="text" id="upd_omr_remarks"></div>
+        <div><label>Encoded By</label><select id="upd_encoded_by"></select></div>
+        <div><label>Plant</label><select id="upd_plant"></select></div>
       </div>
       <div id="updSaveMsg" style="margin-top:14px;"></div>
       <div style="margin-top:10px;">
@@ -414,15 +418,15 @@
       <div class="toolbar">
         <h2 style="margin:0;">Delivery performance summary</h2>
       </div>
-      <div class="desc">Select a Delivery Date range (or use a quick period button below), then click Search. Nothing loads until a complete range is set.</div>
+      <div class="desc">Select a Requested Deliv.Date range (or use a quick period button below), then click Search. Nothing loads until a complete range is set.</div>
 
       <div class="settings-grid" style="grid-template-columns:1fr 1fr auto;margin-bottom:14px;">
         <div>
-          <label>Delivery Date From</label>
+          <label>Requested Deliv.Date From</label>
           <input type="date" id="sumDateFrom">
         </div>
         <div>
-          <label>Delivery Date To</label>
+          <label>Requested Deliv.Date To</label>
           <input type="date" id="sumDateTo">
         </div>
         <div>
@@ -489,11 +493,11 @@
       </div>
       <div class="settings-grid hidden" id="anaCustomRangeRow" style="grid-template-columns:1fr 1fr auto;max-width:500px;margin-bottom:14px;">
         <div>
-          <label>Delivery Date From</label>
+          <label>Requested Deliv.Date From</label>
           <input type="date" id="anaDateFrom">
         </div>
         <div>
-          <label>Delivery Date To</label>
+          <label>Requested Deliv.Date To</label>
           <input type="date" id="anaDateTo">
         </div>
       </div>
@@ -542,7 +546,7 @@
 
     <div class="panel">
       <h2>On-time delivery rate trend</h2>
-      <div class="desc">Percentage of delivered orders that arrived on or before the Delivery Date, per month.</div>
+      <div class="desc">Percentage of delivered orders that arrived on or before the Requested Deliv.Date, per month.</div>
       <div style="height:260px;"><canvas id="anaTrendChart"></canvas></div>
     </div>
 
@@ -582,8 +586,8 @@
     </div>
 
     <div class="panel">
-      <h2>P.O Remarks breakdown</h2>
-      <div class="desc">How often each P.O Remarks value appears across the loaded orders.</div>
+      <h2>OBD Status breakdown</h2>
+      <div class="desc">How often each OBD Status value appears across the loaded orders.</div>
       <div style="height:260px;"><canvas id="anaRemarksChart"></canvas></div>
     </div>
 
@@ -603,7 +607,7 @@
         <h2 style="margin:0;">Average delay by customer group</h2>
         <span class="count-pill" id="anaDelayCount">0 groups</span>
       </div>
-      <div class="desc">Average days late (Received Date minus Delivery Date), counted only for orders that arrived late.</div>
+      <div class="desc">Average days late (Received Date minus Requested Deliv.Date), counted only for orders that arrived late.</div>
       <div class="table-scroll-top" id="anaDelayScrollTop"><div class="table-scroll-top-inner"></div></div>
       <div class="table-wrap" id="anaDelayWrap">
         <table id="anaDelayTable" class="ana-report-table"><thead></thead><tbody></tbody></table>
@@ -612,7 +616,7 @@
   </section>
 
   <footer class="note">
-    Status logic — <b>Cancelled</b>: P.O Remarks = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Delivery Date. <b>Delivered But Delayed</b>: Received Date after Delivery Date. <b>Undelivered</b>: no Received Date and P.O Remarks = "Undelivered" (explicitly flagged). <b>Open Orders</b>: no Received Date and not flagged as Cancelled or Undelivered — regardless of whether the Delivery Date has passed.
+    Status logic — <b>Cancelled</b>: OBD Status = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Requested Deliv.Date. <b>Delivered But Delayed</b>: Received Date after Requested Deliv.Date. <b>Undelivered</b>: no Received Date and OBD Status = "Undelivered" (explicitly flagged). <b>Open Orders</b>: no Received Date and not flagged as Cancelled or Undelivered — regardless of whether the Requested Deliv.Date has passed.
   </footer>
 
 </main>
@@ -649,10 +653,20 @@
 })();
 
 /* ======================= CONFIG ======================= */
-// Predefined P.O Remarks dropdown options — edit this list freely.
-const PO_REMARKS_OPTIONS = [
+// Predefined OBD Status dropdown options — edit this list freely.
+const OBD_STATUS_OPTIONS = [
   "", "Delivered On Time", "Delivered But Delayed", "Cancelled",
   "Undelivered", "Open Order", "For Rescheduling", "Pending Customer Confirmation", "Others"
+];
+
+// Predefined Encoded By dropdown options (SAP users) — edit this list freely.
+const ENCODED_BY_OPTIONS = [
+  "", "Add SAP user names here"
+];
+
+// Predefined Plant dropdown options — edit this list freely.
+const PLANT_OPTIONS = [
+  "", "Add plant codes here"
 ];
 
 // Column mapping: uploaded header text -> database column name
@@ -672,6 +686,10 @@ const COLUMN_MAP = {
   "BILLED AMOUNT": "billed_amount"
 };
 const UPLOAD_HEADERS = Object.keys(COLUMN_MAP);
+// Fields below are always optional on upload — encoded either at upload time or later via
+// Update Record / Bulk update. Their DB column names are unchanged from the older
+// po_remarks / reason_rejection / remarks naming so no data migration is needed for those;
+// pgi_date, omr_remarks, encoded_by and plant are brand-new columns (see setup note).
 const TABLE_NAME = "orders";
 
 // Hardcoded Supabase connection (edit these if you change projects/keys)
@@ -959,10 +977,16 @@ function handleFile(file){
       // Optional columns: if the file already has these (e.g. re-exported from this
       // same tool), prefill them instead of leaving them blank.
       const OPTIONAL_COLUMN_MAP = {
+        "PGI DATE": "_pgi_date",
+        "received date": "_received_date",
+        "OBD STATUS": "_po_remarks",
         "P.O REMARKS": "_po_remarks",
+        "OBD REMARKS": "_remarks",
+        "REJECTION REMARKS": "_reason_rejection",
         "reason rejection": "_reason_rejection",
-        "REMARKS": "_remarks",
-        "received date": "_received_date"
+        "OMR REMARKS": "_omr_remarks",
+        "ENCODED BY": "_encoded_by",
+        "PLANT": "_plant"
       };
       const resolvedOptionalHeaderFor = {};
       Object.keys(OPTIONAL_COLUMN_MAP).forEach(h=>{
@@ -978,10 +1002,14 @@ function handleFile(file){
           if(val instanceof Date) val = val.toISOString().slice(0,10);
           row[key] = (val===undefined||val===null) ? "" : val;
         });
-        row._po_remarks = "";
-        row._reason_rejection = "";
-        row._remarks = "";
+        row._pgi_date = "";
         row._received_date = "";
+        row._po_remarks = "";
+        row._remarks = "";
+        row._reason_rejection = "";
+        row._omr_remarks = "";
+        row._encoded_by = "";
+        row._plant = "";
         Object.keys(OPTIONAL_COLUMN_MAP).forEach(h=>{
           const actualHeader = resolvedOptionalHeaderFor[h];
           if(!actualHeader) return;
@@ -1013,7 +1041,7 @@ const DISPLAY_COLS = [
   ["customer_reference","Customer Reference"],
   ["customer","Customer"],
   ["customer_name","Customer Name"],
-  ["delivery_date","Delivery Date"],
+  ["delivery_date","Requested Deliv.Date"],
   ["so_amt","S.O Amt"],
   ["billed_amount","Billed Amount"],
 ];
@@ -1025,7 +1053,7 @@ function renderPreviewTable(){
   const tbody = document.querySelector('#previewTable tbody');
   thead.innerHTML = '<tr>' +
     DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
-    `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th></th></tr>`;
+    `<th class="input-col">PGI Date</th><th class="input-col">Received Date</th><th class="input-col">OBD Status</th><th class="input-col">OBD Remarks</th><th class="input-col">Rejection Remarks</th><th class="input-col">OMR Remarks</th><th class="input-col">Encoded By</th><th class="input-col">Plant</th><th></th></tr>`;
 
   tbody.innerHTML = stagedRows.map((row, i)=>{
     const cells = DISPLAY_COLS.map(c=>{
@@ -1034,30 +1062,40 @@ function renderPreviewTable(){
       const display = (c[0]==='so_amt'||c[0]==='billed_amount') && raw!=='' && raw!=null ? fmtPeso(raw) : escapeHtml(String(raw));
       return `<td${cls}>${display}</td>`;
     }).join('');
-    const remarksOptions = buildRemarksOptions(row._po_remarks);
+    const statusOptions = buildOptionsHtml(OBD_STATUS_OPTIONS, row._po_remarks);
+    const encodedOptions = buildOptionsHtml(ENCODED_BY_OPTIONS, row._encoded_by);
+    const plantOptions = buildOptionsHtml(PLANT_OPTIONS, row._plant);
     return `<tr data-idx="${i}">
       ${cells}
-      <td><select class="stg-po">${remarksOptions}</select></td>
-      <td><input type="text" class="stg-reason" value="${escapeAttr(row._reason_rejection)}" placeholder="Free text"></td>
-      <td><input type="text" class="stg-remarks" value="${escapeAttr(row._remarks)}" placeholder="Free text"></td>
+      <td><input type="date" class="stg-pgi" value="${row._pgi_date}"></td>
       <td><input type="date" class="stg-received" value="${row._received_date}"></td>
+      <td><select class="stg-po">${statusOptions}</select></td>
+      <td><input type="text" class="stg-remarks" value="${escapeAttr(row._remarks)}" placeholder="Free text"></td>
+      <td><input type="text" class="stg-reason" value="${escapeAttr(row._reason_rejection)}" placeholder="Free text"></td>
+      <td><input type="text" class="stg-omr" value="${escapeAttr(row._omr_remarks)}" placeholder="Free text"></td>
+      <td><select class="stg-encoded">${encodedOptions}</select></td>
+      <td><select class="stg-plant">${plantOptions}</select></td>
       <td></td>
     </tr>`;
   }).join('');
 
   tbody.querySelectorAll('tr').forEach(tr=>{
     const idx = +tr.dataset.idx;
-    tr.querySelector('.stg-po').addEventListener('change', e=>stagedRows[idx]._po_remarks = e.target.value);
-    tr.querySelector('.stg-reason').addEventListener('input', e=>stagedRows[idx]._reason_rejection = e.target.value);
-    tr.querySelector('.stg-remarks').addEventListener('input', e=>stagedRows[idx]._remarks = e.target.value);
+    tr.querySelector('.stg-pgi').addEventListener('change', e=>stagedRows[idx]._pgi_date = e.target.value);
     tr.querySelector('.stg-received').addEventListener('change', e=>stagedRows[idx]._received_date = e.target.value);
+    tr.querySelector('.stg-po').addEventListener('change', e=>stagedRows[idx]._po_remarks = e.target.value);
+    tr.querySelector('.stg-remarks').addEventListener('input', e=>stagedRows[idx]._remarks = e.target.value);
+    tr.querySelector('.stg-reason').addEventListener('input', e=>stagedRows[idx]._reason_rejection = e.target.value);
+    tr.querySelector('.stg-omr').addEventListener('input', e=>stagedRows[idx]._omr_remarks = e.target.value);
+    tr.querySelector('.stg-encoded').addEventListener('change', e=>stagedRows[idx]._encoded_by = e.target.value);
+    tr.querySelector('.stg-plant').addEventListener('change', e=>stagedRows[idx]._plant = e.target.value);
   });
   syncTableTopScroll('previewTable');
 }
 
 document.getElementById('applyBulkBtn').addEventListener('click', ()=>{
   if(!stagedRows.length) return;
-  const value = prompt('Apply which P.O Remarks value to every row in this batch?\n(' + PO_REMARKS_OPTIONS.filter(Boolean).join(', ') + ')');
+  const value = prompt('Apply which OBD Status value to every row in this batch?\n(' + OBD_STATUS_OPTIONS.filter(Boolean).join(', ') + ')');
   if(value===null) return;
   stagedRows.forEach(r=>r._po_remarks = value.trim());
   renderPreviewTable();
@@ -1089,10 +1127,14 @@ async function saveStagedRows(){
     delivery_date: r.delivery_date || null,
     so_amt: r.so_amt === "" ? null : Number(r.so_amt),
     billed_amount: r.billed_amount === "" ? null : Number(r.billed_amount),
+    pgi_date: r._pgi_date || null,
+    received_date: r._received_date || null,
     po_remarks: r._po_remarks || null,
-    reason_rejection: r._reason_rejection || null,
     remarks: r._remarks || null,
-    received_date: r._received_date || null
+    reason_rejection: r._reason_rejection || null,
+    omr_remarks: r._omr_remarks || null,
+    encoded_by: r._encoded_by || null,
+    plant: r._plant || null
   }));
   try{
     // upsert on sales_document so re-uploading the same order updates it rather than duplicating
@@ -1126,13 +1168,13 @@ async function loadSavedRows(){
   const dateTo = document.getElementById('filterDateTo').value;
 
   if(!dateFrom || !dateTo){
-    savedMsg.innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To", then click Search.</div>`;
+    savedMsg.innerHTML = `<div class="msg info">Select both a "Requested Deliv.Date From" and "Requested Deliv.Date To", then click Search.</div>`;
     savedRows = [];
     renderSavedTable();
     return;
   }
   if(dateFrom > dateTo){
-    savedMsg.innerHTML = `<div class="msg err">"Delivery Date From" must be on or before "Delivery Date To".</div>`;
+    savedMsg.innerHTML = `<div class="msg err">"Requested Deliv.Date From" must be on or before "Requested Deliv.Date To".</div>`;
     return;
   }
   const spanDays = daysBetween(dateFrom, dateTo) + 1; // inclusive of both end dates
@@ -1164,12 +1206,12 @@ document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
   document.getElementById('searchSaved').value = '';
   savedRows = [];
   savedColumnFilters = {};
-  document.getElementById('savedMsg').innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To", then click Search.</div>`;
+  document.getElementById('savedMsg').innerHTML = `<div class="msg info">Select both a "Requested Deliv.Date From" and "Requested Deliv.Date To", then click Search.</div>`;
   renderSavedTable();
 });
 
 // Columns eligible for a per-column text filter, in the order they appear in the table.
-const SAVED_TEXT_FILTER_COLS = DISPLAY_COLS.map(c=>c[0]).concat(['po_remarks','reason_rejection','remarks','received_date']);
+const SAVED_TEXT_FILTER_COLS = DISPLAY_COLS.map(c=>c[0]).concat(['pgi_date','received_date','po_remarks','remarks','reason_rejection','omr_remarks','encoded_by','plant']);
 let savedColumnFilters = {}; // col key -> filter text (or 'status' -> exact status code)
 
 function getFilteredSavedRows(){
@@ -1205,7 +1247,7 @@ function renderSavedTableHeader(){
   const thead = document.querySelector('#savedTable thead');
   thead.innerHTML = '<tr>' +
     DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
-    `<th class="input-col">P.O Remarks</th><th class="input-col">Reason for Rejection</th><th class="input-col">Remarks</th><th class="input-col">Received Date</th><th>Status</th><th></th></tr>` +
+    `<th class="input-col">PGI Date</th><th class="input-col">Received Date</th><th class="input-col">OBD Status</th><th class="input-col">OBD Remarks</th><th class="input-col">Rejection Remarks</th><th class="input-col">OMR Remarks</th><th class="input-col">Encoded By</th><th class="input-col">Plant</th><th>Status</th><th></th></tr>` +
     '<tr class="filter-row">' +
     SAVED_TEXT_FILTER_COLS.map(col=>`<th><input type="text" class="col-filter" data-col="${col}" placeholder="Filter..." value="${escapeAttr(savedColumnFilters[col]||'')}"></th>`).join('') +
     `<th><select class="col-filter" data-col="status">
@@ -1243,7 +1285,7 @@ function renderSavedTableBody(){
   document.getElementById('savedCount').textContent = filtered.length + ' of ' + savedRows.length + ' rows';
 
   if(!filtered.length){
-    tbody.innerHTML = `<tr><td colspan="18"><div class="empty-state"><div class="icon">🗂</div>No records match these filters.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="23"><div class="empty-state"><div class="icon">🗂</div>No records match these filters.</div></td></tr>`;
     syncTableTopScroll('savedTable');
     return;
   }
@@ -1261,21 +1303,31 @@ function renderSavedTableBody(){
       // View-only mode: plain text, no inputs and no Update control.
       return `<tr data-id="${row.id}">
         ${cells}
-        <td>${escapeHtml(row.po_remarks||'')}</td>
-        <td>${escapeHtml(row.reason_rejection||'')}</td>
-        <td>${escapeHtml(row.remarks||'')}</td>
+        <td>${escapeHtml(row.pgi_date||'')}</td>
         <td>${escapeHtml(row.received_date||'')}</td>
+        <td>${escapeHtml(row.po_remarks||'')}</td>
+        <td>${escapeHtml(row.remarks||'')}</td>
+        <td>${escapeHtml(row.reason_rejection||'')}</td>
+        <td>${escapeHtml(row.omr_remarks||'')}</td>
+        <td>${escapeHtml(row.encoded_by||'')}</td>
+        <td>${escapeHtml(row.plant||'')}</td>
         <td>${statusBadge(status)} ${risk}</td>
         <td></td>
       </tr>`;
     }
-    const remarksOptions = buildRemarksOptions(row.po_remarks);
+    const statusOptions = buildOptionsHtml(OBD_STATUS_OPTIONS, row.po_remarks);
+    const encodedOptions = buildOptionsHtml(ENCODED_BY_OPTIONS, row.encoded_by);
+    const plantOptions = buildOptionsHtml(PLANT_OPTIONS, row.plant);
     return `<tr data-id="${row.id}">
       ${cells}
-      <td><select class="sv-po">${remarksOptions}</select></td>
-      <td><input type="text" class="sv-reason" value="${escapeAttr(row.reason_rejection||'')}"></td>
-      <td><input type="text" class="sv-remarks" value="${escapeAttr(row.remarks||'')}"></td>
+      <td><input type="date" class="sv-pgi" value="${row.pgi_date||''}"></td>
       <td><input type="date" class="sv-received" value="${row.received_date||''}"></td>
+      <td><select class="sv-po">${statusOptions}</select></td>
+      <td><input type="text" class="sv-remarks" value="${escapeAttr(row.remarks||'')}"></td>
+      <td><input type="text" class="sv-reason" value="${escapeAttr(row.reason_rejection||'')}"></td>
+      <td><input type="text" class="sv-omr" value="${escapeAttr(row.omr_remarks||'')}"></td>
+      <td><select class="sv-encoded">${encodedOptions}</select></td>
+      <td><select class="sv-plant">${plantOptions}</select></td>
       <td>${statusBadge(status)} ${risk}</td>
       <td><button class="pill-btn sv-save">Update</button></td>
     </tr>`;
@@ -1302,10 +1354,14 @@ async function updateSavedRow(id, tr){
   btn.disabled = true;
   btn.textContent = 'Saving...';
   const update = {
+    pgi_date: tr.querySelector('.sv-pgi').value || null,
+    received_date: tr.querySelector('.sv-received').value || null,
     po_remarks: tr.querySelector('.sv-po').value || null,
-    reason_rejection: tr.querySelector('.sv-reason').value || null,
     remarks: tr.querySelector('.sv-remarks').value || null,
-    received_date: tr.querySelector('.sv-received').value || null
+    reason_rejection: tr.querySelector('.sv-reason').value || null,
+    omr_remarks: tr.querySelector('.sv-omr').value || null,
+    encoded_by: tr.querySelector('.sv-encoded').value || null,
+    plant: tr.querySelector('.sv-plant').value || null
   };
   try{
     const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', id);
@@ -1338,13 +1394,19 @@ const UPD_FIELD_MAP = {
   upd_delivery_date: "delivery_date",
   upd_so_amt: "so_amt",
   upd_billed_amount: "billed_amount",
+  upd_pgi_date: "pgi_date",
+  upd_received_date: "received_date",
   upd_po_remarks: "po_remarks",
-  upd_reason_rejection: "reason_rejection",
   upd_remarks: "remarks",
-  upd_received_date: "received_date"
+  upd_reason_rejection: "reason_rejection",
+  upd_omr_remarks: "omr_remarks",
+  upd_encoded_by: "encoded_by",
+  upd_plant: "plant"
 };
 
-document.getElementById('upd_po_remarks').innerHTML = buildRemarksOptions('');
+document.getElementById('upd_po_remarks').innerHTML = buildOptionsHtml(OBD_STATUS_OPTIONS, '');
+document.getElementById('upd_encoded_by').innerHTML = buildOptionsHtml(ENCODED_BY_OPTIONS, '');
+document.getElementById('upd_plant').innerHTML = buildOptionsHtml(PLANT_OPTIONS, '');
 
 document.getElementById('updLookupBtn').addEventListener('click', lookupSalesDocument);
 document.getElementById('updLookupInput').addEventListener('keydown', e=>{ if(e.key==='Enter') lookupSalesDocument(); });
@@ -1384,14 +1446,20 @@ async function lookupSalesDocument(){
   }
 }
 
+const UPD_SELECT_OPTIONS = {
+  upd_po_remarks: OBD_STATUS_OPTIONS,
+  upd_encoded_by: ENCODED_BY_OPTIONS,
+  upd_plant: PLANT_OPTIONS
+};
+
 function populateUpdateForm(row){
   updCurrentId = row.id;
   Object.keys(UPD_FIELD_MAP).forEach(fieldId=>{
     const col = UPD_FIELD_MAP[fieldId];
     const el = document.getElementById(fieldId);
     const val = row[col];
-    if(fieldId === 'upd_po_remarks'){
-      el.innerHTML = buildRemarksOptions(val||'');
+    if(UPD_SELECT_OPTIONS[fieldId]){
+      el.innerHTML = buildOptionsHtml(UPD_SELECT_OPTIONS[fieldId], val||'');
     } else {
       el.value = (val===undefined||val===null) ? '' : val;
     }
@@ -1440,15 +1508,22 @@ document.getElementById('updSaveBtn').addEventListener('click', async ()=>{
 // Column aliases accepted in a pasted header row (normalized: lowercase, collapsed whitespace, punctuation-insensitive)
 const BULK_HEADER_ALIASES = {
   "sales document": "sales_document",
+  "pgi date": "pgi_date",
+  "received date": "received_date",
+  "obd status": "po_remarks",
   "po remarks": "po_remarks",
   "p.o remarks": "po_remarks",
+  "obd remarks": "remarks",
+  "remarks": "remarks",
+  "rejection remarks": "reason_rejection",
   "reason rejection": "reason_rejection",
   "reason for rejection": "reason_rejection",
-  "remarks": "remarks",
-  "received date": "received_date"
+  "omr remarks": "omr_remarks",
+  "encoded by": "encoded_by",
+  "plant": "plant"
 };
 // Fallback column order if the pasted text has no recognizable header row.
-const BULK_DEFAULT_ORDER = ["sales_document","po_remarks","reason_rejection","remarks","received_date"];
+const BULK_DEFAULT_ORDER = ["sales_document","pgi_date","received_date","po_remarks","remarks","reason_rejection","omr_remarks","encoded_by","plant"];
 let bulkParsedRows = [];
 
 function normalizeBulkHeader(s){
@@ -1508,23 +1583,26 @@ function parseBulkPaste(){
   }
 
   if(!colOrder.includes('sales_document')){
-    msg.innerHTML = `<div class="msg err">Couldn't find a "Sales document" column. Make sure it's included in the pasted header row (or omit the header and use the default column order: Sales document, P.O REMARKS, reason rejection, REMARKS, received date).</div>`;
+    msg.innerHTML = `<div class="msg err">Couldn't find a "Sales document" column. Make sure it's included in the pasted header row (or omit the header and use the default column order: Sales document, PGI Date, Received Date, OBD Status, OBD Remarks, Rejection Remarks, OMR Remarks, Encoded By, Plant).</div>`;
     return;
   }
 
   let errCount = 0;
   bulkParsedRows = dataLines.map(line=>{
     const cells = line.split('\t');
-    const obj = { sales_document:'', po_remarks:'', reason_rejection:'', remarks:'', received_date_raw:'' };
+    const obj = { sales_document:'', po_remarks:'', remarks:'', reason_rejection:'', omr_remarks:'', encoded_by:'', plant:'', pgi_date_raw:'', received_date_raw:'' };
     colOrder.forEach((col, i)=>{
       if(!col) return;
       const val = (cells[i]===undefined ? '' : cells[i]).trim();
-      if(col==='received_date') obj.received_date_raw = val;
+      if(col==='pgi_date') obj.pgi_date_raw = val;
+      else if(col==='received_date') obj.received_date_raw = val;
       else obj[col] = val;
     });
+    const pgiResult = parseBulkDate(obj.pgi_date_raw);
+    obj.pgi_date = pgiResult.iso;
     const dateResult = parseBulkDate(obj.received_date_raw);
     obj.received_date = dateResult.iso;
-    obj.dateOk = dateResult.ok;
+    obj.dateOk = dateResult.ok && pgiResult.ok;
     obj.salesDocOk = obj.sales_document.length > 0;
     obj.status = (!obj.salesDocOk) ? 'Missing Sales document' : (!obj.dateOk ? 'Unrecognized date' : 'Ready');
     obj.valid = obj.salesDocOk && obj.dateOk;
@@ -1542,15 +1620,19 @@ function parseBulkPaste(){
 function renderBulkPreview(){
   const thead = document.querySelector('#bulkPreviewTable thead');
   const tbody = document.querySelector('#bulkPreviewTable tbody');
-  thead.innerHTML = `<tr><th>Sales document</th><th>P.O Remarks</th><th>Reason for Rejection</th><th>Remarks</th><th>Received Date</th><th>Status</th></tr>`;
+  thead.innerHTML = `<tr><th>Sales document</th><th>PGI Date</th><th>Received Date</th><th>OBD Status</th><th>OBD Remarks</th><th>Rejection Remarks</th><th>OMR Remarks</th><th>Encoded By</th><th>Plant</th><th>Status</th></tr>`;
   tbody.innerHTML = bulkParsedRows.map((r,i)=>{
     const statusCls = r.valid ? 'ok' : 'err';
     return `<tr data-bulk-idx="${i}">
       <td>${escapeHtml(r.sales_document)}</td>
-      <td>${escapeHtml(r.po_remarks)}</td>
-      <td>${escapeHtml(r.reason_rejection)}</td>
-      <td>${escapeHtml(r.remarks)}</td>
+      <td>${escapeHtml(r.pgi_date || r.pgi_date_raw)}</td>
       <td>${escapeHtml(r.received_date || r.received_date_raw)}</td>
+      <td>${escapeHtml(r.po_remarks)}</td>
+      <td>${escapeHtml(r.remarks)}</td>
+      <td>${escapeHtml(r.reason_rejection)}</td>
+      <td>${escapeHtml(r.omr_remarks)}</td>
+      <td>${escapeHtml(r.encoded_by)}</td>
+      <td>${escapeHtml(r.plant)}</td>
       <td class="bulk-status"><span class="msg ${statusCls}" style="display:inline-block;padding:2px 9px;margin:0;">${escapeHtml(r.status)}</span></td>
     </tr>`;
   }).join('');
@@ -1576,10 +1658,14 @@ document.getElementById('bulkSaveBtn').addEventListener('click', async ()=>{
     const statusCell = document.querySelector(`#bulkPreviewTable tr[data-bulk-idx="${i}"] .bulk-status`);
     if(!r.valid){ skipped++; continue; }
     const update = {
+      pgi_date: r.pgi_date,
+      received_date: r.received_date,
       po_remarks: r.po_remarks === '' ? null : r.po_remarks,
-      reason_rejection: r.reason_rejection === '' ? null : r.reason_rejection,
       remarks: r.remarks === '' ? null : r.remarks,
-      received_date: r.received_date
+      reason_rejection: r.reason_rejection === '' ? null : r.reason_rejection,
+      omr_remarks: r.omr_remarks === '' ? null : r.omr_remarks,
+      encoded_by: r.encoded_by === '' ? null : r.encoded_by,
+      plant: r.plant === '' ? null : r.plant
     };
     try{
       const { data, error } = await supabaseClient.from(TABLE_NAME).update(update).eq('sales_document', r.sales_document).select('id');
@@ -1655,8 +1741,8 @@ function computeRiskLevel(row, asOf){
   return null;
 }
 function riskBadge(level){
-  if(level === 'OVERDUE') return `<span class="badge overdue" title="Past Delivery Date, still not received">Overdue</span>`;
-  if(level === 'AT_RISK') return `<span class="badge at-risk" title="Delivery Date within ${AT_RISK_DAYS} day(s), still not received">At Risk</span>`;
+  if(level === 'OVERDUE') return `<span class="badge overdue" title="Past Requested Deliv.Date, still not received">Overdue</span>`;
+  if(level === 'AT_RISK') return `<span class="badge at-risk" title="Requested Deliv.Date within ${AT_RISK_DAYS} day(s), still not received">At Risk</span>`;
   return '';
 }
 
@@ -1695,13 +1781,13 @@ async function loadSummary(){
   const dateTo = document.getElementById('sumDateTo').value;
 
   if(!dateFrom || !dateTo){
-    msg.innerHTML = `<div class="msg info">Select both a "Delivery Date From" and "Delivery Date To" (or click a quick period button), then click Search.</div>`;
+    msg.innerHTML = `<div class="msg info">Select both a "Requested Deliv.Date From" and "Requested Deliv.Date To" (or click a quick period button), then click Search.</div>`;
     document.getElementById('summaryCards').innerHTML = '';
     document.querySelector('#summaryTable tbody').innerHTML = '';
     return;
   }
   if(dateFrom > dateTo){
-    msg.innerHTML = `<div class="msg err">"Delivery Date From" must be on or before "Delivery Date To".</div>`;
+    msg.innerHTML = `<div class="msg err">"Requested Deliv.Date From" must be on or before "Requested Deliv.Date To".</div>`;
     return;
   }
   if(!supabaseClient){
@@ -1883,11 +1969,11 @@ async function loadAnalytics(){
     const dateFrom = document.getElementById('anaDateFrom').value;
     const dateTo = document.getElementById('anaDateTo').value;
     if(!dateFrom || !dateTo){
-      msg.innerHTML = `<div class="msg err">Select both a "Delivery Date From" and "Delivery Date To" for a custom range, or switch to "All records".</div>`;
+      msg.innerHTML = `<div class="msg err">Select both a "Requested Deliv.Date From" and "Requested Deliv.Date To" for a custom range, or switch to "All records".</div>`;
       return;
     }
     if(dateFrom > dateTo){
-      msg.innerHTML = `<div class="msg err">"Delivery Date From" must be on or before "Delivery Date To".</div>`;
+      msg.innerHTML = `<div class="msg err">"Requested Deliv.Date From" must be on or before "Requested Deliv.Date To".</div>`;
       return;
     }
     filters = { gte:['delivery_date', dateFrom], lte:['delivery_date', dateTo] };
@@ -2214,7 +2300,7 @@ const anaCustIssueTableCtl = createReportTable('anaCustIssueTable', [
 ]);
 
 const anaReasonTableCtl = createReportTable('anaReasonTable', [
-  { key:'reason', label:'Reason for Rejection' },
+  { key:'reason', label:'Rejection Remarks' },
   { key:'count', label:'Occurrences', numeric:true }
 ]);
 
@@ -2234,9 +2320,10 @@ document.getElementById('anaExportBtn').addEventListener('click', ()=>{
   const rawSheet = getAnaFilteredRows().map(r=>({
     'Sales document': r.sales_document, 'Customer': r.customer, 'Customer Name': r.customer_name,
     'Customer Group': r.customer_group_description, 'AM Sales Name': r.am_sales_name,
-    'Delivery Date': r.delivery_date, 'Received Date': r.received_date,
-    'Status': computeStatus(r), 'Risk': computeRiskLevel(r) || '', 'P.O Remarks': r.po_remarks, 'Reason for Rejection': r.reason_rejection,
-    'Remarks': r.remarks, 'Billed Amount': r.billed_amount
+    'Requested Deliv.Date': r.delivery_date, 'PGI Date': r.pgi_date, 'Received Date': r.received_date,
+    'Status': computeStatus(r), 'Risk': computeRiskLevel(r) || '', 'OBD Status': r.po_remarks, 'OBD Remarks': r.remarks,
+    'Rejection Remarks': r.reason_rejection, 'OMR Remarks': r.omr_remarks, 'Encoded By': r.encoded_by, 'Plant': r.plant,
+    'Billed Amount': r.billed_amount
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawSheet), 'Raw Data');
 
@@ -2258,8 +2345,8 @@ document.getElementById('anaExportBtn').addEventListener('click', ()=>{
     'On-Time Rate %': x.onTimeRate==null?'':x.onTimeRate.toFixed(1)
   }))), 'Monthly Trend');
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.remarksArr.map(x=>({ 'P.O Remarks':x.remark, 'Count':x.count }))), 'PO Remarks');
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.reasonsArr.map(x=>({ 'Reason for Rejection':x.reason, 'Count':x.count }))), 'Top Reasons');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.remarksArr.map(x=>({ 'OBD Status':x.remark, 'Count':x.count }))), 'OBD Status');
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.reasonsArr.map(x=>({ 'Rejection Remarks':x.reason, 'Count':x.count }))), 'Top Reasons');
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.delayByGroupArr.map(x=>({
     'Customer Group':x.customer_group_description, 'Total Orders':x.total, 'Delayed Orders':x.delayedCount,
     'Avg Days Late': x.avgDelayDays==null?'':x.avgDelayDays.toFixed(1)
@@ -2272,8 +2359,8 @@ document.getElementById('anaExportBtn').addEventListener('click', ()=>{
 let anaLoadedOnce = false;
 
 /* ======================= UTIL ======================= */
-function buildRemarksOptions(currentValue){
-  let options = PO_REMARKS_OPTIONS.slice();
+function buildOptionsHtml(optionList, currentValue){
+  let options = optionList.slice();
   const matches = options.some(o => o.toLowerCase() === (currentValue||'').toLowerCase());
   if(currentValue && !matches) options.push(currentValue); // preserve values from uploaded/legacy data
   return options.map(o=>`<option value="${escapeAttr(o)}" ${ (currentValue||'').toLowerCase()===o.toLowerCase() ? 'selected':''}>${o||'—'}</option>`).join('');
