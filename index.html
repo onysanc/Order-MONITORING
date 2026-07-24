@@ -277,7 +277,7 @@
 
     <div class="panel">
       <h2>1. Upload order data</h2>
-      <div class="desc">Accepts .xlsx, .xls or .csv with these headers: Customer Group Description, Sales Document Type, AM Sales Name, Created on, Sales document, OBD NUMBER, INVOICE NUM, Customer Reference, Customer, Customer Name, DELIVERY DATE (Requested Deliv.Date), S.O AMT, BILLED AMOUNT. PGI Date, Received Date, OBD Status, OBD Remarks, Rejection Remarks, OMR Remarks, Encoded By and Plant are optional — fill them in below or add them later via Update Record.</div>
+      <div class="desc">Accepts .xlsx, .xls or .csv with these headers: Customer Group Description, Sales Document Type, AM Sales Name, RSM Sales Name, Created on, Sales document, OBD NUMBER, INVOICE NUM, Customer Reference, Customer, Customer Name, DELIVERY DATE (Requested Deliv.Date), S.O AMT, BILLED AMOUNT. PGI Date, Received Date, OBD Status, OBD Remarks, Rejection Remarks, OMR Remarks, Encoded By and Plant are optional — fill them in below or add them later via Update Record.</div>
       <div class="drop" id="dropZone">
         <div class="icon">⇪</div>
         <div>Drag and drop a file here, or click to browse</div>
@@ -406,6 +406,7 @@
         <div><label>Customer Group Description</label><input type="text" id="upd_customer_group_description"></div>
         <div><label>Sales Document Type</label><input type="text" id="upd_sales_document_type"></div>
         <div><label>AM Sales Name</label><input type="text" id="upd_am_sales_name"></div>
+        <div><label>RSM Sales Name</label><input type="text" id="upd_rsm_sales_name"></div>
         <div><label>Created on</label><input type="date" id="upd_created_on"></div>
         <div><label>Sales document</label><input type="text" id="upd_sales_document"></div>
         <div><label>OBD Number</label><input type="text" id="upd_obd_number"></div>
@@ -694,6 +695,7 @@ const COLUMN_MAP = {
   "Customer Group Description": "customer_group_description",
   "Sales Document Type": "sales_document_type",
   "AM Sales Name": "am_sales_name",
+  "RSM Sales Name": "rsm_sales_name",
   "Created on": "created_on",
   "Sales document": "sales_document",
   "OBD NUMBER": "obd_number",
@@ -1067,6 +1069,7 @@ const DISPLAY_COLS = [
   ["customer_group_description","Customer Group Description"],
   ["sales_document_type","Sales Document Type"],
   ["am_sales_name","AM Sales Name"],
+  ["rsm_sales_name","RSM Sales Name"],
   ["created_on","Created on"],
   ["sales_document","Sales document"],
   ["obd_number","OBD Number"],
@@ -1218,6 +1221,7 @@ async function saveStagedRows(){
     customer_group_description: r.customer_group_description || null,
     sales_document_type: r.sales_document_type || null,
     am_sales_name: r.am_sales_name || null,
+    rsm_sales_name: r.rsm_sales_name || null,
     created_on: r.created_on || null,
     sales_document: r.sales_document || null,
     obd_number: r.obd_number || null,
@@ -1539,6 +1543,7 @@ const UPD_FIELD_MAP = {
   upd_customer_group_description: "customer_group_description",
   upd_sales_document_type: "sales_document_type",
   upd_am_sales_name: "am_sales_name",
+  upd_rsm_sales_name: "rsm_sales_name",
   upd_created_on: "created_on",
   upd_sales_document: "sales_document",
   upd_obd_number: "obd_number",
@@ -2477,7 +2482,7 @@ document.getElementById('anaExportBtn').addEventListener('click', ()=>{
 
   const rawSheet = getAnaFilteredRows().map(r=>({
     'Sales document': r.sales_document, 'Customer': r.customer, 'Customer Name': r.customer_name,
-    'Customer Group': r.customer_group_description, 'AM Sales Name': r.am_sales_name,
+    'Customer Group': r.customer_group_description, 'AM Sales Name': r.am_sales_name, 'RSM Sales Name': r.rsm_sales_name,
     'Requested Deliv.Date': r.delivery_date, 'PGI Date': r.pgi_date, 'Received Date': r.received_date,
     'Status': computeStatus(r), 'Risk': computeRiskLevel(r) || '', 'OBD Status': r.po_remarks, 'OBD Remarks': r.remarks,
     'Rejection Remarks': r.reason_rejection, 'OMR Remarks': r.omr_remarks, 'Encoded By': r.encoded_by, 'Plant': r.plant,
