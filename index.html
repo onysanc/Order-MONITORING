@@ -324,6 +324,7 @@
           <button class="pill-btn" id="savedColumnsBtn" type="button">⚙ Columns</button>
           <button class="pill-btn hidden" id="recordsSwitchEditBtn" type="button">Switch to edit mode</button>
           <button class="btn secondary" id="savedExportBtn" type="button">Export to Excel</button>
+          <button class="btn danger hidden" id="savedDeleteBtn" type="button" disabled>Delete selected</button>
         </div>
       </div>
       <div class="desc">Select a Requested Deliv.Date range (31 days max) and click Search. Records only load once both dates are filled in.</div>
@@ -783,19 +784,32 @@ const RECORDS_PASSWORD = 'jaja'; // case-insensitive check below
 let recordsEditUnlocked = false; // reset every time the tab is re-entered
 let recordsTabBtn = null;
 let raSelectedMode = 'view';
+let selectedSavedIds = new Set(); // ids checked for mass delete — cleared on mode switch / reload
+
+function updateDeleteBtnUI(){
+  const btn = document.getElementById('savedDeleteBtn');
+  const n = selectedSavedIds.size;
+  btn.disabled = n === 0;
+  btn.textContent = n ? `Delete selected (${n})` : 'Delete selected';
+}
 
 function updateRecordsModeUI(){
   const pill = document.getElementById('recordsModePill');
   const switchBtn = document.getElementById('recordsSwitchEditBtn');
+  const deleteBtn = document.getElementById('savedDeleteBtn');
+  selectedSavedIds.clear();
   if(recordsEditUnlocked){
     pill.textContent = '✎ Edit mode';
     pill.className = 'records-mode-pill edit';
     switchBtn.classList.add('hidden');
+    deleteBtn.classList.remove('hidden');
   } else {
     pill.textContent = '👁 View mode';
     pill.className = 'records-mode-pill view';
     switchBtn.classList.remove('hidden');
+    deleteBtn.classList.add('hidden');
   }
+  updateDeleteBtnUI();
   renderSavedTableBody();
 }
 
@@ -1253,6 +1267,8 @@ async function loadSavedRows(){
   const savedMsg = document.getElementById('savedMsg');
   const dateFrom = document.getElementById('filterDateFrom').value;
   const dateTo = document.getElementById('filterDateTo').value;
+  selectedSavedIds.clear();
+  updateDeleteBtnUI();
 
   if(!dateFrom || !dateTo){
     savedMsg.innerHTML = `<div class="msg info">Select both a "Requested Deliv.Date From" and "Requested Deliv.Date To", then click Search.</div>`;
@@ -1334,11 +1350,15 @@ function renderSavedTableHeader(){
   const visStatic = DISPLAY_COLS.filter(c=>columnVisibility[c[0]]);
   const visEditKeys = EDITABLE_COL_ORDER.filter(k=>columnVisibility[k]);
   const filterCols = visStatic.map(c=>c[0]).concat(visEditKeys);
+  const checkboxTh = recordsEditUnlocked ? `<th><input type="checkbox" id="savedSelectAll"></th>` : '';
+  const checkboxFilterTh = recordsEditUnlocked ? `<th></th>` : '';
   thead.innerHTML = '<tr>' +
+    checkboxTh +
     visStatic.map(c=>`<th>${c[1]}</th>`).join('') +
     visEditKeys.map(k=>`<th class="input-col">${EDITABLE_COL_DEFS[k].label}</th>`).join('') +
     `<th>Status</th><th></th></tr>` +
     '<tr class="filter-row">' +
+    checkboxFilterTh +
     filterCols.map(col=>`<th><input type="text" class="col-filter" data-col="${col}" placeholder="Filter..." value="${escapeAttr(savedColumnFilters[col]||'')}"></th>`).join('') +
     `<th><select class="col-filter" data-col="status">
         <option value="">All</option>
@@ -1353,6 +1373,18 @@ function renderSavedTableHeader(){
     `<th></th></tr>`;
   const statusSelect = thead.querySelector('select.col-filter[data-col="status"]');
   if(statusSelect) statusSelect.value = savedColumnFilters.status || '';
+  if(recordsEditUnlocked){
+    const selectAll = document.getElementById('savedSelectAll');
+    const filteredNow = getFilteredSavedRows();
+    selectAll.checked = filteredNow.length > 0 && filteredNow.every(r=>selectedSavedIds.has(String(r.id)));
+    selectAll.addEventListener('change', ()=>{
+      const filtered = getFilteredSavedRows();
+      if(selectAll.checked) filtered.forEach(r=>selectedSavedIds.add(String(r.id)));
+      else filtered.forEach(r=>selectedSavedIds.delete(String(r.id)));
+      updateDeleteBtnUI();
+      renderSavedTableBody();
+    });
+  }
 }
 
 // Event delegation on the (persistent) thead element — survives header re-renders,
@@ -1373,7 +1405,7 @@ function renderSavedTableBody(){
   const filtered = getFilteredSavedRows();
   const visStatic = DISPLAY_COLS.filter(c=>columnVisibility[c[0]]);
   const visEditKeys = EDITABLE_COL_ORDER.filter(k=>columnVisibility[k]);
-  const totalCols = visStatic.length + visEditKeys.length + 2; // + Status + action
+  const totalCols = visStatic.length + visEditKeys.length + 2 + (recordsEditUnlocked ? 1 : 0); // + Status + action (+ checkbox)
 
   document.getElementById('savedCount').textContent = filtered.length + ' of ' + savedRows.length + ' rows';
 
@@ -1384,6 +1416,9 @@ function renderSavedTableBody(){
   }
 
   tbody.innerHTML = filtered.map((row)=>{
+    const checkboxCell = recordsEditUnlocked
+      ? `<td><input type="checkbox" class="sv-select" ${selectedSavedIds.has(String(row.id)) ? 'checked' : ''}></td>`
+      : '';
     const cells = visStatic.map(c=>{
       const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
       let val = row[c[0]];
@@ -1410,6 +1445,7 @@ function renderSavedTableBody(){
       return `<td><input type="text" class="sv-${k}" value="${escapeAttr(val||'')}"></td>`;
     }).join('');
     return `<tr data-id="${row.id}">
+      ${checkboxCell}
       ${cells}
       ${editCells}
       <td>${statusBadge(status)} ${risk}</td>
@@ -1422,6 +1458,19 @@ function renderSavedTableBody(){
       const id = tr.dataset.id;
       const saveBtn = tr.querySelector('.sv-save');
       if(saveBtn) saveBtn.addEventListener('click', ()=>updateSavedRow(id, tr));
+      const checkbox = tr.querySelector('.sv-select');
+      if(checkbox){
+        checkbox.addEventListener('change', ()=>{
+          if(checkbox.checked) selectedSavedIds.add(String(id));
+          else selectedSavedIds.delete(String(id));
+          updateDeleteBtnUI();
+          const selectAll = document.getElementById('savedSelectAll');
+          if(selectAll){
+            const filteredNow = getFilteredSavedRows();
+            selectAll.checked = filteredNow.length > 0 && filteredNow.every(r=>selectedSavedIds.has(String(r.id)));
+          }
+        });
+      }
     });
   }
   syncTableTopScroll('savedTable');
@@ -1457,6 +1506,31 @@ async function updateSavedRow(id, tr){
     btn.disabled = false;
   }
 }
+
+/* ---- All Records: mass delete of selected rows ---- */
+document.getElementById('savedDeleteBtn').addEventListener('click', async ()=>{
+  if(!supabaseClient || selectedSavedIds.size === 0) return;
+  const ids = Array.from(selectedSavedIds);
+  const ok = confirm(`Delete ${ids.length} selected record(s)? This cannot be undone.`);
+  if(!ok) return;
+  const btn = document.getElementById('savedDeleteBtn');
+  btn.disabled = true;
+  const prevText = btn.textContent;
+  btn.textContent = 'Deleting...';
+  const savedMsg = document.getElementById('savedMsg');
+  try{
+    const { error } = await supabaseClient.from(TABLE_NAME).delete().in('id', ids);
+    if(error) throw error;
+    savedRows = savedRows.filter(r=>!selectedSavedIds.has(String(r.id)));
+    selectedSavedIds.clear();
+    savedMsg.innerHTML = `<div class="msg ok">Deleted ${ids.length} record(s).</div>`;
+    renderSavedTable();
+  }catch(err){
+    savedMsg.innerHTML = `<div class="msg err">Delete failed: ${escapeHtml(err.message||String(err))}</div>`;
+  }finally{
+    updateDeleteBtnUI();
+  }
+});
 
 /* ======================= UPDATE RECORD TAB ======================= */
 let updCurrentId = null; // id of the row currently loaded for editing
