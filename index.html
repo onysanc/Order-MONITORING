@@ -246,6 +246,21 @@
   </div>
 </div>
 
+<div id="colManagerOverlay" class="pw-overlay hidden">
+  <div class="pw-modal" style="width:420px;max-width:92vw;max-height:82vh;overflow-y:auto;">
+    <h3>Manage Columns</h3>
+    <p>Choose which columns to show. This applies to both the Import preview table and the All Records table.</p>
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="pill-btn" id="colShowAllBtn" type="button">Show all</button>
+      <button class="pill-btn" id="colHideAllBtn" type="button">Hide all</button>
+    </div>
+    <div id="colManagerList"></div>
+    <div class="pw-actions">
+      <button class="btn" id="colManagerCloseBtn" type="button">Done</button>
+    </div>
+  </div>
+</div>
+
 <nav class="tabs">
   <button class="active" data-tab="summary">Summary Dashboard</button>
   <button data-tab="analytics">Analytics &amp; Reports</button>
@@ -278,6 +293,7 @@
           <span class="count-pill" id="rowCount">0 rows</span>
         </div>
         <div class="left">
+          <button class="pill-btn" id="previewColumnsBtn" type="button">⚙ Columns</button>
           <button class="btn secondary" id="applyBulkBtn">Apply OBD Status to all</button>
           <button class="btn" id="saveAllBtn">Save all to database</button>
         </div>
@@ -304,6 +320,7 @@
           <span class="records-mode-pill view" id="recordsModePill">👁 View mode</span>
         </div>
         <div class="left">
+          <button class="pill-btn" id="savedColumnsBtn" type="button">⚙ Columns</button>
           <button class="pill-btn hidden" id="recordsSwitchEditBtn" type="button">Switch to edit mode</button>
         </div>
       </div>
@@ -1046,49 +1063,117 @@ const DISPLAY_COLS = [
   ["billed_amount","Billed Amount"],
 ];
 
+// Encoding/editable columns — shared definition used by both the Import preview table
+// and the All Records table so their inputs stay in sync (same options, same order).
+const EDITABLE_COL_ORDER = ["pgi_date","received_date","po_remarks","remarks","reason_rejection","omr_remarks","encoded_by","plant"];
+const EDITABLE_COL_DEFS = {
+  pgi_date:        { label:"PGI Date",          type:"date" },
+  received_date:   { label:"Received Date",     type:"date" },
+  po_remarks:      { label:"OBD Status",        type:"select", options:()=>OBD_STATUS_OPTIONS },
+  remarks:         { label:"OBD Remarks",       type:"text" },
+  reason_rejection:{ label:"Rejection Remarks", type:"text" },
+  omr_remarks:     { label:"OMR Remarks",       type:"text" },
+  encoded_by:      { label:"Encoded By",        type:"select", options:()=>ENCODED_BY_OPTIONS },
+  plant:           { label:"Plant",             type:"select", options:()=>PLANT_OPTIONS }
+};
+const ALL_COLUMNS = DISPLAY_COLS.concat(EDITABLE_COL_ORDER.map(k=>[k, EDITABLE_COL_DEFS[k].label]));
+
+/* ---- Column visibility (shared between Import preview & All Records, persisted) ---- */
+const COLUMN_VISIBILITY_KEY = 'of_column_visibility';
+let columnVisibility = {};
+function loadColumnVisibility(){
+  let saved = {};
+  try{ saved = JSON.parse(localStorage.getItem(COLUMN_VISIBILITY_KEY) || '{}'); }catch(e){}
+  ALL_COLUMNS.forEach(c=>{
+    columnVisibility[c[0]] = saved.hasOwnProperty(c[0]) ? !!saved[c[0]] : true;
+  });
+}
+function saveColumnVisibility(){
+  try{ localStorage.setItem(COLUMN_VISIBILITY_KEY, JSON.stringify(columnVisibility)); }catch(e){}
+}
+loadColumnVisibility();
+
+function renderColumnManagerList(){
+  const wrap = document.getElementById('colManagerList');
+  const group = (title, cols) => `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--slate);margin-bottom:6px;letter-spacing:.4px;">${title}</div>
+      ${cols.map(c=>`
+        <label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;color:var(--text);cursor:pointer;">
+          <input type="checkbox" class="col-toggle" data-col="${c[0]}" ${columnVisibility[c[0]] ? 'checked':''}>
+          ${escapeHtml(c[1])}
+        </label>`).join('')}
+    </div>`;
+  wrap.innerHTML = group('Uploaded Data', DISPLAY_COLS) + group('Encoding Fields', EDITABLE_COL_ORDER.map(k=>[k, EDITABLE_COL_DEFS[k].label]));
+}
+function refreshAfterColumnChange(){
+  saveColumnVisibility();
+  renderPreviewTable();
+  renderSavedTable();
+}
+function openColumnManager(){
+  renderColumnManagerList();
+  document.getElementById('colManagerOverlay').classList.remove('hidden');
+}
+function closeColumnManager(){
+  document.getElementById('colManagerOverlay').classList.add('hidden');
+}
+document.getElementById('previewColumnsBtn').addEventListener('click', openColumnManager);
+document.getElementById('savedColumnsBtn').addEventListener('click', openColumnManager);
+document.getElementById('colManagerCloseBtn').addEventListener('click', closeColumnManager);
+document.getElementById('colManagerOverlay').addEventListener('click', e=>{ if(e.target.id==='colManagerOverlay') closeColumnManager(); });
+document.getElementById('colManagerList').addEventListener('change', e=>{
+  if(!e.target.classList.contains('col-toggle')) return;
+  columnVisibility[e.target.dataset.col] = e.target.checked;
+  refreshAfterColumnChange();
+});
+document.getElementById('colShowAllBtn').addEventListener('click', ()=>{
+  ALL_COLUMNS.forEach(c=>columnVisibility[c[0]]=true);
+  renderColumnManagerList(); refreshAfterColumnChange();
+});
+document.getElementById('colHideAllBtn').addEventListener('click', ()=>{
+  ALL_COLUMNS.forEach(c=>columnVisibility[c[0]]=false);
+  renderColumnManagerList(); refreshAfterColumnChange();
+});
+
 function renderPreviewTable(){
   document.getElementById('previewPanel').style.display = stagedRows.length ? 'block' : 'none';
   document.getElementById('rowCount').textContent = stagedRows.length + ' rows';
   const thead = document.querySelector('#previewTable thead');
   const tbody = document.querySelector('#previewTable tbody');
+  const visStatic = DISPLAY_COLS.filter(c=>columnVisibility[c[0]]);
+  const visEditKeys = EDITABLE_COL_ORDER.filter(k=>columnVisibility[k]);
+
   thead.innerHTML = '<tr>' +
-    DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
-    `<th class="input-col">PGI Date</th><th class="input-col">Received Date</th><th class="input-col">OBD Status</th><th class="input-col">OBD Remarks</th><th class="input-col">Rejection Remarks</th><th class="input-col">OMR Remarks</th><th class="input-col">Encoded By</th><th class="input-col">Plant</th><th></th></tr>`;
+    visStatic.map(c=>`<th>${c[1]}</th>`).join('') +
+    visEditKeys.map(k=>`<th class="input-col">${EDITABLE_COL_DEFS[k].label}</th>`).join('') +
+    `<th></th></tr>`;
 
   tbody.innerHTML = stagedRows.map((row, i)=>{
-    const cells = DISPLAY_COLS.map(c=>{
+    const cells = visStatic.map(c=>{
       const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
       const raw = row[c[0]];
       const display = (c[0]==='so_amt'||c[0]==='billed_amount') && raw!=='' && raw!=null ? fmtPeso(raw) : escapeHtml(String(raw));
       return `<td${cls}>${display}</td>`;
     }).join('');
-    const statusOptions = buildOptionsHtml(OBD_STATUS_OPTIONS, row._po_remarks);
-    const encodedOptions = buildOptionsHtml(ENCODED_BY_OPTIONS, row._encoded_by);
-    const plantOptions = buildOptionsHtml(PLANT_OPTIONS, row._plant);
-    return `<tr data-idx="${i}">
-      ${cells}
-      <td><input type="date" class="stg-pgi" value="${row._pgi_date}"></td>
-      <td><input type="date" class="stg-received" value="${row._received_date}"></td>
-      <td><select class="stg-po">${statusOptions}</select></td>
-      <td><input type="text" class="stg-remarks" value="${escapeAttr(row._remarks)}" placeholder="Free text"></td>
-      <td><input type="text" class="stg-reason" value="${escapeAttr(row._reason_rejection)}" placeholder="Free text"></td>
-      <td><input type="text" class="stg-omr" value="${escapeAttr(row._omr_remarks)}" placeholder="Free text"></td>
-      <td><select class="stg-encoded">${encodedOptions}</select></td>
-      <td><select class="stg-plant">${plantOptions}</select></td>
-      <td></td>
-    </tr>`;
+    const editCells = visEditKeys.map(k=>{
+      const def = EDITABLE_COL_DEFS[k];
+      const val = row['_'+k];
+      if(def.type==='date') return `<td><input type="date" class="stg-${k}" value="${val}"></td>`;
+      if(def.type==='select') return `<td><select class="stg-${k}">${buildOptionsHtml(def.options(), val)}</select></td>`;
+      return `<td><input type="text" class="stg-${k}" value="${escapeAttr(val)}" placeholder="Free text"></td>`;
+    }).join('');
+    return `<tr data-idx="${i}">${cells}${editCells}<td></td></tr>`;
   }).join('');
 
   tbody.querySelectorAll('tr').forEach(tr=>{
     const idx = +tr.dataset.idx;
-    tr.querySelector('.stg-pgi').addEventListener('change', e=>stagedRows[idx]._pgi_date = e.target.value);
-    tr.querySelector('.stg-received').addEventListener('change', e=>stagedRows[idx]._received_date = e.target.value);
-    tr.querySelector('.stg-po').addEventListener('change', e=>stagedRows[idx]._po_remarks = e.target.value);
-    tr.querySelector('.stg-remarks').addEventListener('input', e=>stagedRows[idx]._remarks = e.target.value);
-    tr.querySelector('.stg-reason').addEventListener('input', e=>stagedRows[idx]._reason_rejection = e.target.value);
-    tr.querySelector('.stg-omr').addEventListener('input', e=>stagedRows[idx]._omr_remarks = e.target.value);
-    tr.querySelector('.stg-encoded').addEventListener('change', e=>stagedRows[idx]._encoded_by = e.target.value);
-    tr.querySelector('.stg-plant').addEventListener('change', e=>stagedRows[idx]._plant = e.target.value);
+    visEditKeys.forEach(k=>{
+      const def = EDITABLE_COL_DEFS[k];
+      const el = tr.querySelector('.stg-'+k);
+      const evt = def.type==='text' ? 'input' : 'change';
+      el.addEventListener(evt, e=>stagedRows[idx]['_'+k] = e.target.value);
+    });
   });
   syncTableTopScroll('previewTable');
 }
@@ -1211,7 +1296,6 @@ document.getElementById('clearFiltersBtn').addEventListener('click', ()=>{
 });
 
 // Columns eligible for a per-column text filter, in the order they appear in the table.
-const SAVED_TEXT_FILTER_COLS = DISPLAY_COLS.map(c=>c[0]).concat(['pgi_date','received_date','po_remarks','remarks','reason_rejection','omr_remarks','encoded_by','plant']);
 let savedColumnFilters = {}; // col key -> filter text (or 'status' -> exact status code)
 
 function getFilteredSavedRows(){
@@ -1245,11 +1329,15 @@ function getFilteredSavedRows(){
 
 function renderSavedTableHeader(){
   const thead = document.querySelector('#savedTable thead');
+  const visStatic = DISPLAY_COLS.filter(c=>columnVisibility[c[0]]);
+  const visEditKeys = EDITABLE_COL_ORDER.filter(k=>columnVisibility[k]);
+  const filterCols = visStatic.map(c=>c[0]).concat(visEditKeys);
   thead.innerHTML = '<tr>' +
-    DISPLAY_COLS.map(c=>`<th>${c[1]}</th>`).join('') +
-    `<th class="input-col">PGI Date</th><th class="input-col">Received Date</th><th class="input-col">OBD Status</th><th class="input-col">OBD Remarks</th><th class="input-col">Rejection Remarks</th><th class="input-col">OMR Remarks</th><th class="input-col">Encoded By</th><th class="input-col">Plant</th><th>Status</th><th></th></tr>` +
+    visStatic.map(c=>`<th>${c[1]}</th>`).join('') +
+    visEditKeys.map(k=>`<th class="input-col">${EDITABLE_COL_DEFS[k].label}</th>`).join('') +
+    `<th>Status</th><th></th></tr>` +
     '<tr class="filter-row">' +
-    SAVED_TEXT_FILTER_COLS.map(col=>`<th><input type="text" class="col-filter" data-col="${col}" placeholder="Filter..." value="${escapeAttr(savedColumnFilters[col]||'')}"></th>`).join('') +
+    filterCols.map(col=>`<th><input type="text" class="col-filter" data-col="${col}" placeholder="Filter..." value="${escapeAttr(savedColumnFilters[col]||'')}"></th>`).join('') +
     `<th><select class="col-filter" data-col="status">
         <option value="">All</option>
         <option value="ON_TIME">Delivered On Time</option>
@@ -1281,17 +1369,20 @@ document.querySelector('#savedTable thead').addEventListener('change', (e)=>{
 function renderSavedTableBody(){
   const tbody = document.querySelector('#savedTable tbody');
   const filtered = getFilteredSavedRows();
+  const visStatic = DISPLAY_COLS.filter(c=>columnVisibility[c[0]]);
+  const visEditKeys = EDITABLE_COL_ORDER.filter(k=>columnVisibility[k]);
+  const totalCols = visStatic.length + visEditKeys.length + 2; // + Status + action
 
   document.getElementById('savedCount').textContent = filtered.length + ' of ' + savedRows.length + ' rows';
 
   if(!filtered.length){
-    tbody.innerHTML = `<tr><td colspan="23"><div class="empty-state"><div class="icon">🗂</div>No records match these filters.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="${totalCols}"><div class="empty-state"><div class="icon">🗂</div>No records match these filters.</div></td></tr>`;
     syncTableTopScroll('savedTable');
     return;
   }
 
   tbody.innerHTML = filtered.map((row)=>{
-    const cells = DISPLAY_COLS.map(c=>{
+    const cells = visStatic.map(c=>{
       const cls = (c[0]==='so_amt'||c[0]==='billed_amount') ? ' class="num"' : '';
       let val = row[c[0]];
       if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null){ val = fmtPeso(val); return `<td${cls}>${val}</td>`; }
@@ -1301,33 +1392,24 @@ function renderSavedTableBody(){
     const risk = riskBadge(computeRiskLevel(row));
     if(!recordsEditUnlocked){
       // View-only mode: plain text, no inputs and no Update control.
+      const viewCells = visEditKeys.map(k=>`<td>${escapeHtml(row[k]||'')}</td>`).join('');
       return `<tr data-id="${row.id}">
         ${cells}
-        <td>${escapeHtml(row.pgi_date||'')}</td>
-        <td>${escapeHtml(row.received_date||'')}</td>
-        <td>${escapeHtml(row.po_remarks||'')}</td>
-        <td>${escapeHtml(row.remarks||'')}</td>
-        <td>${escapeHtml(row.reason_rejection||'')}</td>
-        <td>${escapeHtml(row.omr_remarks||'')}</td>
-        <td>${escapeHtml(row.encoded_by||'')}</td>
-        <td>${escapeHtml(row.plant||'')}</td>
+        ${viewCells}
         <td>${statusBadge(status)} ${risk}</td>
         <td></td>
       </tr>`;
     }
-    const statusOptions = buildOptionsHtml(OBD_STATUS_OPTIONS, row.po_remarks);
-    const encodedOptions = buildOptionsHtml(ENCODED_BY_OPTIONS, row.encoded_by);
-    const plantOptions = buildOptionsHtml(PLANT_OPTIONS, row.plant);
+    const editCells = visEditKeys.map(k=>{
+      const def = EDITABLE_COL_DEFS[k];
+      const val = row[k];
+      if(def.type==='date') return `<td><input type="date" class="sv-${k}" value="${val||''}"></td>`;
+      if(def.type==='select') return `<td><select class="sv-${k}">${buildOptionsHtml(def.options(), val)}</select></td>`;
+      return `<td><input type="text" class="sv-${k}" value="${escapeAttr(val||'')}"></td>`;
+    }).join('');
     return `<tr data-id="${row.id}">
       ${cells}
-      <td><input type="date" class="sv-pgi" value="${row.pgi_date||''}"></td>
-      <td><input type="date" class="sv-received" value="${row.received_date||''}"></td>
-      <td><select class="sv-po">${statusOptions}</select></td>
-      <td><input type="text" class="sv-remarks" value="${escapeAttr(row.remarks||'')}"></td>
-      <td><input type="text" class="sv-reason" value="${escapeAttr(row.reason_rejection||'')}"></td>
-      <td><input type="text" class="sv-omr" value="${escapeAttr(row.omr_remarks||'')}"></td>
-      <td><select class="sv-encoded">${encodedOptions}</select></td>
-      <td><select class="sv-plant">${plantOptions}</select></td>
+      ${editCells}
       <td>${statusBadge(status)} ${risk}</td>
       <td><button class="pill-btn sv-save">Update</button></td>
     </tr>`;
@@ -1353,16 +1435,13 @@ async function updateSavedRow(id, tr){
   const btn = tr.querySelector('.sv-save');
   btn.disabled = true;
   btn.textContent = 'Saving...';
-  const update = {
-    pgi_date: tr.querySelector('.sv-pgi').value || null,
-    received_date: tr.querySelector('.sv-received').value || null,
-    po_remarks: tr.querySelector('.sv-po').value || null,
-    remarks: tr.querySelector('.sv-remarks').value || null,
-    reason_rejection: tr.querySelector('.sv-reason').value || null,
-    omr_remarks: tr.querySelector('.sv-omr').value || null,
-    encoded_by: tr.querySelector('.sv-encoded').value || null,
-    plant: tr.querySelector('.sv-plant').value || null
-  };
+  // Only sends fields whose column is currently visible/rendered — hidden columns are
+  // left untouched in the database rather than being overwritten with null.
+  const update = {};
+  EDITABLE_COL_ORDER.forEach(k=>{
+    const el = tr.querySelector('.sv-'+k);
+    if(el) update[k] = el.value || null;
+  });
   try{
     const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', id);
     if(error) throw error;
