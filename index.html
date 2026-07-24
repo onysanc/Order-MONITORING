@@ -255,6 +255,27 @@
       <button class="pill-btn" id="colHideAllBtn" type="button">Hide all</button>
     </div>
     <div id="colManagerList"></div>
+
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--line);">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--slate);margin-bottom:8px;letter-spacing:.4px;">Add a new column</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <input type="text" id="newColLabel" placeholder="Column name (e.g. Trucking Company)">
+        <select id="newColType">
+          <option value="text">Text</option>
+          <option value="number">Number</option>
+          <option value="date">Date</option>
+          <option value="select">Dropdown</option>
+        </select>
+        <input type="text" id="newColOptions" class="hidden" placeholder="Dropdown options, comma separated">
+        <button class="btn secondary" id="addColBtn" type="button">+ Add column</button>
+      </div>
+      <div id="colManagerMsg" style="margin-top:8px;"></div>
+      <div style="margin-top:10px;font-size:11.5px;color:var(--slate);line-height:1.5;">
+        New columns store their values in a <code>custom_fields</code> column in Supabase. If you haven't already, run this once in your Supabase SQL editor:
+        <pre style="white-space:pre-wrap;background:var(--pill-bg);padding:8px;border-radius:6px;margin-top:6px;font-size:11px;color:var(--text);">alter table public.orders add column if not exists custom_fields jsonb not null default '{}'::jsonb;</pre>
+      </div>
+    </div>
+
     <div class="pw-actions">
       <button class="btn" id="colManagerCloseBtn" type="button">Done</button>
     </div>
@@ -422,6 +443,7 @@
         <div><label>Encoded By</label><select id="upd_encoded_by"></select></div>
         <div><label>Plant</label><select id="upd_plant"></select></div>
       </div>
+      <div class="form-grid" id="updCustomFieldsGrid" style="margin-top:14px;"></div>
       <div id="updSaveMsg" style="margin-top:14px;"></div>
       <div style="margin-top:10px;">
         <button class="btn" id="updSaveBtn">Save changes</button>
@@ -1027,6 +1049,7 @@ function handleFile(file){
         row._omr_remarks = "";
         row._encoded_by = "";
         row._plant = "";
+        customColumns.forEach(c=>{ row['_'+c.key] = ""; });
         Object.keys(OPTIONAL_COLUMN_MAP).forEach(h=>{
           const actualHeader = resolvedOptionalHeaderFor[h];
           if(!actualHeader) return;
@@ -1065,8 +1088,8 @@ const DISPLAY_COLS = [
 
 // Encoding/editable columns — shared definition used by both the Import preview table
 // and the All Records table so their inputs stay in sync (same options, same order).
-const EDITABLE_COL_ORDER = ["pgi_date","received_date","po_remarks","remarks","reason_rejection","omr_remarks","encoded_by","plant"];
-const EDITABLE_COL_DEFS = {
+const BUILTIN_EDIT_COL_ORDER = ["pgi_date","received_date","po_remarks","remarks","reason_rejection","omr_remarks","encoded_by","plant"];
+const BUILTIN_EDIT_COL_DEFS = {
   pgi_date:        { label:"PGI Date",          type:"date" },
   received_date:   { label:"Received Date",     type:"date" },
   po_remarks:      { label:"OBD Status",        type:"select", options:()=>OBD_STATUS_OPTIONS },
@@ -1076,7 +1099,58 @@ const EDITABLE_COL_DEFS = {
   encoded_by:      { label:"Encoded By",        type:"select", options:()=>ENCODED_BY_OPTIONS },
   plant:           { label:"Plant",             type:"select", options:()=>PLANT_OPTIONS }
 };
-const ALL_COLUMNS = DISPLAY_COLS.concat(EDITABLE_COL_ORDER.map(k=>[k, EDITABLE_COL_DEFS[k].label]));
+
+/* ---- Custom (user-defined) columns — persisted in localStorage, values stored in the
+   Supabase `custom_fields` jsonb column. Adding/deleting a custom column here updates
+   the Import preview table, the All Records table, the Manage Columns list and the
+   Update Record form all at once, since they all read from EDITABLE_COL_ORDER/DEFS. ---- */
+const CUSTOM_COLUMNS_KEY = 'of_custom_columns';
+let customColumns = [];
+function loadCustomColumns(){
+  try{ customColumns = JSON.parse(localStorage.getItem(CUSTOM_COLUMNS_KEY) || '[]'); }
+  catch(e){ customColumns = []; }
+  if(!Array.isArray(customColumns)) customColumns = [];
+}
+function saveCustomColumns(){
+  try{ localStorage.setItem(CUSTOM_COLUMNS_KEY, JSON.stringify(customColumns)); }catch(e){}
+}
+loadCustomColumns();
+
+function isCustomColKey(k){ return customColumns.some(c=>c.key===k); }
+function getCustomCol(k){ return customColumns.find(c=>c.key===k); }
+function slugifyColKey(label){
+  let base = String(label).toLowerCase().trim().replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  if(!base) base = 'field';
+  const taken = new Set(BUILTIN_EDIT_COL_ORDER.concat(DISPLAY_COLS.map(c=>c[0])).concat(customColumns.map(c=>c.key)));
+  let key = base, n = 2;
+  while(taken.has(key)){ key = base + '_' + n; n++; }
+  return key;
+}
+
+let EDITABLE_COL_ORDER = [];
+let EDITABLE_COL_DEFS = {};
+let ALL_COLUMNS = [];
+function rebuildColumnDefs(){
+  EDITABLE_COL_ORDER = BUILTIN_EDIT_COL_ORDER.concat(customColumns.map(c=>c.key));
+  EDITABLE_COL_DEFS = Object.assign({}, BUILTIN_EDIT_COL_DEFS);
+  customColumns.forEach(c=>{
+    EDITABLE_COL_DEFS[c.key] = {
+      label: c.label,
+      type: c.type,
+      custom: true,
+      options: c.type==='select' ? (()=>[''].concat(c.options||[])) : undefined
+    };
+  });
+  ALL_COLUMNS = DISPLAY_COLS.concat(EDITABLE_COL_ORDER.map(k=>[k, EDITABLE_COL_DEFS[k].label]));
+}
+rebuildColumnDefs();
+
+// Read a field's value off a saved-DB row, whether it's a real top-level column or a
+// custom column tucked inside the custom_fields jsonb blob.
+function getRowFieldVal(row, k){
+  if(isCustomColKey(k)) return (row.custom_fields && row.custom_fields[k] != null) ? row.custom_fields[k] : '';
+  return row[k];
+}
 
 /* ---- Column visibility (shared between Import preview & All Records, persisted) ---- */
 const COLUMN_VISIBILITY_KEY = 'of_column_visibility';
@@ -1104,8 +1178,74 @@ function renderColumnManagerList(){
           ${escapeHtml(c[1])}
         </label>`).join('')}
     </div>`;
-  wrap.innerHTML = group('Uploaded Data', DISPLAY_COLS) + group('Encoding Fields', EDITABLE_COL_ORDER.map(k=>[k, EDITABLE_COL_DEFS[k].label]));
+  const customGroupHtml = customColumns.length ? `
+    <div style="margin-bottom:12px;">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--slate);margin-bottom:6px;letter-spacing:.4px;">Custom Columns</div>
+      ${customColumns.map(c=>`
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0;">
+          <label style="display:flex;align-items:center;gap:8px;padding:0;font-size:13px;font-weight:400;text-transform:none;letter-spacing:normal;color:var(--text);cursor:pointer;flex:1;">
+            <input type="checkbox" class="col-toggle" data-col="${c.key}" ${columnVisibility[c.key] ? 'checked':''}>
+            ${escapeHtml(c.label)}
+          </label>
+          <button type="button" class="pill-btn col-delete-btn" data-col="${c.key}" style="padding:2px 8px;font-size:11px;color:#A6392E;">Delete</button>
+        </div>`).join('')}
+    </div>` : '';
+  wrap.innerHTML = group('Uploaded Data', DISPLAY_COLS) + group('Encoding Fields', BUILTIN_EDIT_COL_ORDER.map(k=>[k, BUILTIN_EDIT_COL_DEFS[k].label])) + customGroupHtml;
 }
+
+function deleteCustomColumn(key){
+  const col = getCustomCol(key);
+  if(!col) return;
+  if(!confirm(`Delete column "${col.label}"? It will disappear from Import, All Records and Update Record. Any values already saved for it stay in the database's custom_fields data, just hidden from the app.`)) return;
+  customColumns = customColumns.filter(c=>c.key!==key);
+  saveCustomColumns();
+  delete columnVisibility[key];
+  rebuildColumnDefs();
+  saveColumnVisibility();
+  renderColumnManagerList();
+  renderUpdCustomFields();
+  refreshAfterColumnChange();
+}
+
+function addCustomColumn(){
+  const msg = document.getElementById('colManagerMsg');
+  const labelInput = document.getElementById('newColLabel');
+  const label = labelInput.value.trim();
+  const type = document.getElementById('newColType').value;
+  const optionsInput = document.getElementById('newColOptions');
+  if(!label){
+    msg.innerHTML = `<div class="msg err">Enter a column name.</div>`;
+    return;
+  }
+  const col = { key: slugifyColKey(label), label, type };
+  if(type==='select'){
+    col.options = optionsInput.value.split(',').map(s=>s.trim()).filter(Boolean);
+    if(!col.options.length){
+      msg.innerHTML = `<div class="msg err">Add at least one dropdown option, comma separated.</div>`;
+      return;
+    }
+  }
+  customColumns.push(col);
+  saveCustomColumns();
+  columnVisibility[col.key] = true;
+  rebuildColumnDefs();
+  saveColumnVisibility();
+  labelInput.value = '';
+  optionsInput.value = '';
+  msg.innerHTML = `<div class="msg ok">Added "${escapeHtml(label)}".</div>`;
+  renderColumnManagerList();
+  renderUpdCustomFields();
+  refreshAfterColumnChange();
+}
+document.getElementById('newColType').addEventListener('change', e=>{
+  document.getElementById('newColOptions').classList.toggle('hidden', e.target.value!=='select');
+});
+document.getElementById('addColBtn').addEventListener('click', addCustomColumn);
+document.getElementById('colManagerList').addEventListener('click', e=>{
+  const btn = e.target.closest('.col-delete-btn');
+  if(!btn) return;
+  deleteCustomColumn(btn.dataset.col);
+});
 function refreshAfterColumnChange(){
   saveColumnVisibility();
   renderPreviewTable();
@@ -1161,6 +1301,7 @@ function renderPreviewTable(){
       const val = row['_'+k];
       if(def.type==='date') return `<td><input type="date" class="stg-${k}" value="${val}"></td>`;
       if(def.type==='select') return `<td><select class="stg-${k}">${buildOptionsHtml(def.options(), val)}</select></td>`;
+      if(def.type==='number') return `<td><input type="number" class="stg-${k}" value="${escapeAttr(val)}"></td>`;
       return `<td><input type="text" class="stg-${k}" value="${escapeAttr(val)}" placeholder="Free text"></td>`;
     }).join('');
     return `<tr data-idx="${i}">${cells}${editCells}<td></td></tr>`;
@@ -1219,7 +1360,8 @@ async function saveStagedRows(){
     reason_rejection: r._reason_rejection || null,
     omr_remarks: r._omr_remarks || null,
     encoded_by: r._encoded_by || null,
-    plant: r._plant || null
+    plant: r._plant || null,
+    ...(customColumns.length ? { custom_fields: customColumns.reduce((acc,c)=>{ acc[c.key] = r['_'+c.key] || null; return acc; }, {}) } : {})
   }));
   try{
     // upsert on sales_document so re-uploading the same order updates it rather than duplicating
@@ -1392,7 +1534,7 @@ function renderSavedTableBody(){
     const risk = riskBadge(computeRiskLevel(row));
     if(!recordsEditUnlocked){
       // View-only mode: plain text, no inputs and no Update control.
-      const viewCells = visEditKeys.map(k=>`<td>${escapeHtml(row[k]||'')}</td>`).join('');
+      const viewCells = visEditKeys.map(k=>`<td>${escapeHtml(getRowFieldVal(row,k)||'')}</td>`).join('');
       return `<tr data-id="${row.id}">
         ${cells}
         ${viewCells}
@@ -1402,9 +1544,10 @@ function renderSavedTableBody(){
     }
     const editCells = visEditKeys.map(k=>{
       const def = EDITABLE_COL_DEFS[k];
-      const val = row[k];
+      const val = getRowFieldVal(row,k);
       if(def.type==='date') return `<td><input type="date" class="sv-${k}" value="${val||''}"></td>`;
       if(def.type==='select') return `<td><select class="sv-${k}">${buildOptionsHtml(def.options(), val)}</select></td>`;
+      if(def.type==='number') return `<td><input type="number" class="sv-${k}" value="${escapeAttr(val==null?'':val)}"></td>`;
       return `<td><input type="text" class="sv-${k}" value="${escapeAttr(val||'')}"></td>`;
     }).join('');
     return `<tr data-id="${row.id}">
@@ -1436,16 +1579,25 @@ async function updateSavedRow(id, tr){
   btn.disabled = true;
   btn.textContent = 'Saving...';
   // Only sends fields whose column is currently visible/rendered — hidden columns are
-  // left untouched in the database rather than being overwritten with null.
+  // left untouched in the database rather than being overwritten with null. Custom
+  // columns don't have their own DB column — their values live inside the single
+  // custom_fields jsonb blob, so they're merged on top of whatever's already there.
   const update = {};
+  const customUpdate = {};
+  let hasCustom = false;
+  const row = savedRows.find(r=>String(r.id)===String(id));
   EDITABLE_COL_ORDER.forEach(k=>{
     const el = tr.querySelector('.sv-'+k);
-    if(el) update[k] = el.value || null;
+    if(!el) return;
+    if(isCustomColKey(k)){ customUpdate[k] = el.value || null; hasCustom = true; }
+    else update[k] = el.value || null;
   });
+  if(hasCustom){
+    update.custom_fields = Object.assign({}, (row && row.custom_fields) || {}, customUpdate);
+  }
   try{
     const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', id);
     if(error) throw error;
-    const row = savedRows.find(r=>String(r.id)===String(id));
     if(row) Object.assign(row, update);
     btn.textContent = 'Updated ✓';
     setTimeout(()=>{ btn.textContent='Update'; btn.disabled=false; }, 1200);
@@ -1486,6 +1638,21 @@ const UPD_FIELD_MAP = {
 document.getElementById('upd_po_remarks').innerHTML = buildOptionsHtml(OBD_STATUS_OPTIONS, '');
 document.getElementById('upd_encoded_by').innerHTML = buildOptionsHtml(ENCODED_BY_OPTIONS, '');
 document.getElementById('upd_plant').innerHTML = buildOptionsHtml(PLANT_OPTIONS, '');
+
+// Custom columns rendered as extra fields on the Update Record form.
+let updCurrentCustomFields = {}; // custom_fields blob of the currently-loaded record
+function renderUpdCustomFields(){
+  const wrap = document.getElementById('updCustomFieldsGrid');
+  if(!wrap) return;
+  wrap.innerHTML = customColumns.map(c=>{
+    const id = 'updc_'+c.key;
+    if(c.type==='date') return `<div><label>${escapeHtml(c.label)}</label><input type="date" id="${id}"></div>`;
+    if(c.type==='number') return `<div><label>${escapeHtml(c.label)}</label><input type="number" id="${id}"></div>`;
+    if(c.type==='select') return `<div><label>${escapeHtml(c.label)}</label><select id="${id}"></select></div>`;
+    return `<div><label>${escapeHtml(c.label)}</label><input type="text" id="${id}"></div>`;
+  }).join('');
+}
+renderUpdCustomFields();
 
 document.getElementById('updLookupBtn').addEventListener('click', lookupSalesDocument);
 document.getElementById('updLookupInput').addEventListener('keydown', e=>{ if(e.key==='Enter') lookupSalesDocument(); });
@@ -1543,6 +1710,17 @@ function populateUpdateForm(row){
       el.value = (val===undefined||val===null) ? '' : val;
     }
   });
+  updCurrentCustomFields = row.custom_fields || {};
+  customColumns.forEach(c=>{
+    const el = document.getElementById('updc_'+c.key);
+    if(!el) return;
+    const val = updCurrentCustomFields[c.key];
+    if(c.type==='select'){
+      el.innerHTML = buildOptionsHtml([''].concat(c.options||[]), val||'');
+    } else {
+      el.value = (val===undefined||val===null) ? '' : val;
+    }
+  });
   document.getElementById('updSaveMsg').innerHTML = '';
 }
 
@@ -1570,6 +1748,15 @@ document.getElementById('updSaveBtn').addEventListener('click', async ()=>{
       update[col] = val==='' ? null : val;
     }
   });
+  if(customColumns.length){
+    const customUpdate = {};
+    customColumns.forEach(c=>{
+      const el = document.getElementById('updc_'+c.key);
+      if(!el) return;
+      customUpdate[c.key] = el.value === '' ? null : el.value;
+    });
+    update.custom_fields = Object.assign({}, updCurrentCustomFields || {}, customUpdate);
+  }
 
   try{
     const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', updCurrentId);
