@@ -1640,8 +1640,15 @@ async function updateSavedRow(id, tr){
     update.custom_fields = Object.assign({}, (row && row.custom_fields) || {}, customUpdate);
   }
   try{
-    const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', id);
+    // .select('id') is required here — without it, Supabase update() reports success
+    // (no error) even if zero rows actually matched (wrong/stale id, or an RLS policy
+    // silently blocking the write), which was making saves look successful on screen
+    // while the database itself was never actually updated.
+    const { data, error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', id).select('id');
     if(error) throw error;
+    if(!data || !data.length){
+      throw new Error('No matching record was updated in the database (0 rows affected) — check Supabase Row Level Security policies allow updates on this table.');
+    }
     if(row) Object.assign(row, update);
     btn.textContent = 'Updated ✓';
     setTimeout(()=>{ btn.textContent='Update'; btn.disabled=false; }, 1200);
@@ -1803,8 +1810,14 @@ document.getElementById('updSaveBtn').addEventListener('click', async ()=>{
   }
 
   try{
-    const { error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', updCurrentId);
+    // .select('id') is required — without it, update() reports success even when zero
+    // rows actually matched, which was making saves look successful while the database
+    // itself never received the change.
+    const { data, error } = await supabaseClient.from(TABLE_NAME).update(update).eq('id', updCurrentId).select('id');
     if(error) throw error;
+    if(!data || !data.length){
+      throw new Error('No matching record was updated in the database (0 rows affected) — check Supabase Row Level Security policies allow updates on this table.');
+    }
     msg.innerHTML = `<div class="msg ok">Saved.</div>`;
   }catch(err){
     msg.innerHTML = `<div class="msg err">Save failed: ${escapeHtml(err.message||String(err))}</div>`;
