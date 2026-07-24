@@ -323,6 +323,7 @@
         <div class="left">
           <button class="pill-btn" id="savedColumnsBtn" type="button">⚙ Columns</button>
           <button class="pill-btn hidden" id="recordsSwitchEditBtn" type="button">Switch to edit mode</button>
+          <button class="btn secondary" id="savedExportBtn" type="button">Export to Excel</button>
         </div>
       </div>
       <div class="desc">Select a Requested Deliv.Date range (31 days max) and click Search. Records only load once both dates are filled in.</div>
@@ -1784,15 +1785,18 @@ function computeStatus(row){
   if(remarks === 'undelivered') return 'UNDELIVERED';
   return 'OPEN';
 }
+const STATUS_LABEL_MAP = {
+  ON_TIME: ['on-time','Delivered On Time'],
+  DELAYED: ['delayed','Delivered But Delayed'],
+  CANCELLED: ['cancelled','Cancelled'],
+  UNDELIVERED: ['undelivered','Undelivered'],
+  OPEN: ['open','Open Order']
+};
+function statusLabel(status){
+  return STATUS_LABEL_MAP[status] ? STATUS_LABEL_MAP[status][1] : '';
+}
 function statusBadge(status){
-  const map = {
-    ON_TIME: ['on-time','Delivered On Time'],
-    DELAYED: ['delayed','Delivered But Delayed'],
-    CANCELLED: ['cancelled','Cancelled'],
-    UNDELIVERED: ['undelivered','Undelivered'],
-    OPEN: ['open','Open Order']
-  };
-  const [cls,label] = map[status];
+  const [cls,label] = STATUS_LABEL_MAP[status];
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
@@ -2434,6 +2438,30 @@ document.getElementById('anaExportBtn').addEventListener('click', ()=>{
 
   const stamp = new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb, `order-fulfillment-report-${stamp}.xlsx`);
+});
+
+/* ---- All Records: Excel export (currently filtered rows, visible columns + status) ---- */
+document.getElementById('savedExportBtn').addEventListener('click', ()=>{
+  const filtered = getFilteredSavedRows();
+  if(!filtered.length) return;
+  const visStatic = DISPLAY_COLS.filter(c=>columnVisibility[c[0]]);
+  const visEditKeys = EDITABLE_COL_ORDER.filter(k=>columnVisibility[k]);
+  const sheetRows = filtered.map(row=>{
+    const out = {};
+    visStatic.forEach(c=>{
+      let val = row[c[0]];
+      if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null) val = Number(val);
+      out[c[1]] = val==null ? '' : val;
+    });
+    visEditKeys.forEach(k=>{ out[EDITABLE_COL_DEFS[k].label] = row[k]==null ? '' : row[k]; });
+    out['Status'] = statusLabel(computeStatus(row));
+    out['Risk'] = computeRiskLevel(row) || '';
+    return out;
+  });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(sheetRows), 'All Records');
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `all-records-export-${stamp}.xlsx`);
 });
 
 let anaLoadedOnce = false;
