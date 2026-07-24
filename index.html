@@ -2017,15 +2017,15 @@ function computeStatus(row){
   if(remarks === 'cancelled') return 'CANCELLED';
   const delivery = row.delivery_date ? new Date(row.delivery_date) : null;
   const received = row.received_date ? new Date(row.received_date) : null;
+  // Delivered On Time / Delivered But Delayed are decided purely by comparing dates —
+  // Requested Deliv.Date vs Received Date — never by the OBD Status remarks text.
   if(received){
     if(delivery && received > delivery) return 'DELAYED';
     return 'ON_TIME';
   }
-  // No Received Date on file: fall back to whatever was explicitly picked in the OBD
-  // Status dropdown, so orders marked "Delivered On Time" / "Delivered But Delayed"
-  // still get counted even when Received Date itself wasn't also filled in.
-  if(remarks === 'delivered on time') return 'ON_TIME';
-  if(remarks === 'delivered but delayed') return 'DELAYED';
+  // No Received Date yet: only counts as Undelivered if explicitly flagged via OBD Status.
+  // Otherwise it stays an Open Order regardless of whether the delivery date has passed,
+  // since a past-due delivery date alone doesn't confirm the order failed to deliver.
   if(remarks === 'undelivered') return 'UNDELIVERED';
   return 'OPEN';
 }
