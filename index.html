@@ -342,6 +342,7 @@
         </div>
         <div class="left">
           <button class="pill-btn" id="savedColumnsBtn" type="button">⚙ Columns</button>
+          <button class="btn secondary" id="savedExportBtn" type="button">⇩ Export to Excel</button>
           <button class="pill-btn hidden" id="recordsSwitchEditBtn" type="button">Switch to edit mode</button>
         </div>
       </div>
@@ -1260,6 +1261,49 @@ function closeColumnManager(){
 }
 document.getElementById('previewColumnsBtn').addEventListener('click', openColumnManager);
 document.getElementById('savedColumnsBtn').addEventListener('click', openColumnManager);
+document.getElementById('savedExportBtn').addEventListener('click', exportSavedRowsToExcel);
+
+// Exports exactly what's currently on screen in the All Records table: the same rows
+// that pass the active filters (date range, search text, per-column filters), and the
+// same columns that are currently toggled visible via Manage Columns — including any
+// custom columns, and a computed Status column to match what's shown on screen.
+function exportSavedRowsToExcel(){
+  if(typeof XLSX === 'undefined'){
+    alert('Excel export library did not load. Check your internet connection and try again.');
+    return;
+  }
+  const rows = getFilteredSavedRows();
+  if(!rows.length){
+    alert('No records to export. Adjust your filters and try again.');
+    return;
+  }
+  const visStatic = DISPLAY_COLS.filter(c=>columnVisibility[c[0]]);
+  const visEditKeys = EDITABLE_COL_ORDER.filter(k=>columnVisibility[k]);
+
+  const sheetRows = rows.map(row=>{
+    const out = {};
+    visStatic.forEach(c=>{
+      let val = row[c[0]];
+      if((c[0]==='so_amt'||c[0]==='billed_amount') && val!=null) val = Number(val);
+      out[c[1]] = val==null ? '' : val;
+    });
+    visEditKeys.forEach(k=>{
+      out[EDITABLE_COL_DEFS[k].label] = getRowFieldVal(row,k) || '';
+    });
+    const status = computeStatus(row);
+    const statusLabel = { ON_TIME:'Delivered On Time', DELAYED:'Delivered But Delayed', CANCELLED:'Cancelled', UNDELIVERED:'Undelivered', OPEN:'Open Order' }[status] || status;
+    out['Status'] = statusLabel;
+    const risk = computeRiskLevel(row);
+    out['Risk'] = risk === 'OVERDUE' ? 'Overdue' : risk === 'AT_RISK' ? 'At Risk' : '';
+    return out;
+  });
+
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.json_to_sheet(sheetRows);
+  XLSX.utils.book_append_sheet(wb, ws, 'All Records');
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `all-records-${stamp}.xlsx`);
+}
 document.getElementById('colManagerCloseBtn').addEventListener('click', closeColumnManager);
 document.getElementById('colManagerOverlay').addEventListener('click', e=>{ if(e.target.id==='colManagerOverlay') closeColumnManager(); });
 document.getElementById('colManagerList').addEventListener('change', e=>{
