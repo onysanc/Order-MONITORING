@@ -56,6 +56,8 @@
   html[data-theme="dark"] .badge.cancelled{background:rgba(224,107,93,0.16);}
   html[data-theme="dark"] .badge.undelivered{background:rgba(160,120,220,0.18);color:#B49BE8;}
   html[data-theme="dark"] .badge.open{background:rgba(140,160,200,0.16);color:#C7D2E6;}
+  html[data-theme="dark"] .badge.at-risk{background:rgba(227,163,76,0.16);}
+  html[data-theme="dark"] .badge.overdue{background:rgba(224,107,93,0.16);}
   html[data-theme="dark"] .msg.ok{background:rgba(79,183,125,0.14);color:#7DDBA6;}
   html[data-theme="dark"] .msg.err{background:rgba(224,107,93,0.14);color:#F0958A;}
   html[data-theme="dark"] .drop:hover, html[data-theme="dark"] .drop.drag{background:var(--teal-light);}
@@ -156,6 +158,8 @@
   .badge.cancelled{background:#FBE9E7;color:var(--red);}
   .badge.undelivered{background:#F1E7FB;color:#7A4FBF;}
   .badge.open{background:#E9EEF7;color:var(--navy);}
+  .badge.at-risk{background:#FBF0DE;color:var(--amber);}
+  .badge.overdue{background:#FBE9E7;color:var(--red);}
 
   .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
   .toolbar .left{display:flex;gap:10px;align-items:center;}
@@ -464,6 +468,8 @@
               <th>Undelivered</th>
               <th>Delivered But Delayed</th>
               <th>Open Orders</th>
+              <th>At Risk</th>
+              <th>Overdue</th>
             </tr>
           </thead>
           <tbody></tbody>
@@ -1183,7 +1189,9 @@ function getFilteredSavedRows(){
       const fv = (savedColumnFilters[col]||'').trim();
       if(!fv) continue;
       if(col==='status'){
-        if(computeStatus(r) !== fv) return false;
+        if(fv==='AT_RISK' || fv==='OVERDUE'){
+          if(computeRiskLevel(r) !== fv) return false;
+        } else if(computeStatus(r) !== fv) return false;
       } else {
         const cellVal = r[col];
         if(!String(cellVal==null?'':cellVal).toLowerCase().includes(fv.toLowerCase())) return false;
@@ -1207,6 +1215,8 @@ function renderSavedTableHeader(){
         <option value="CANCELLED">Cancelled</option>
         <option value="UNDELIVERED">Undelivered</option>
         <option value="OPEN">Open Order</option>
+        <option value="AT_RISK">Open — At Risk</option>
+        <option value="OVERDUE">Open — Overdue</option>
       </select></th>` +
     `<th></th></tr>`;
   const statusSelect = thead.querySelector('select.col-filter[data-col="status"]');
@@ -1246,6 +1256,7 @@ function renderSavedTableBody(){
       return `<td${cls}>${escapeHtml(val==null?'':String(val))}</td>`;
     }).join('');
     const status = computeStatus(row);
+    const risk = riskBadge(computeRiskLevel(row));
     if(!recordsEditUnlocked){
       // View-only mode: plain text, no inputs and no Update control.
       return `<tr data-id="${row.id}">
@@ -1254,7 +1265,7 @@ function renderSavedTableBody(){
         <td>${escapeHtml(row.reason_rejection||'')}</td>
         <td>${escapeHtml(row.remarks||'')}</td>
         <td>${escapeHtml(row.received_date||'')}</td>
-        <td>${statusBadge(status)}</td>
+        <td>${statusBadge(status)} ${risk}</td>
         <td></td>
       </tr>`;
     }
@@ -1265,7 +1276,7 @@ function renderSavedTableBody(){
       <td><input type="text" class="sv-reason" value="${escapeAttr(row.reason_rejection||'')}"></td>
       <td><input type="text" class="sv-remarks" value="${escapeAttr(row.remarks||'')}"></td>
       <td><input type="date" class="sv-received" value="${row.received_date||''}"></td>
-      <td>${statusBadge(status)}</td>
+      <td>${statusBadge(status)} ${risk}</td>
       <td><button class="pill-btn sv-save">Update</button></td>
     </tr>`;
   }).join('');
@@ -1619,6 +1630,36 @@ function statusBadge(status){
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
+// How many days out counts as "at risk" for an Open order that isn't overdue
+// yet — tune this to your operational lead time.
+const AT_RISK_DAYS = 3;
+
+// Further classifies OPEN orders only (everything else — On Time, Delayed,
+// Cancelled, Undelivered — is already resolved and returns null here):
+//   OVERDUE  — Delivery Date has already passed, still no Received Date.
+//   AT_RISK  — Delivery Date is within AT_RISK_DAYS, still no Received Date.
+//   null     — comfortably on track (or no Delivery Date to judge by).
+// This exists purely to surface trouble BEFORE it becomes a Delayed/
+// Undelivered order, since computeStatus() only reports what already
+// happened.
+function computeRiskLevel(row, asOf){
+  if(computeStatus(row) !== 'OPEN') return null;
+  if(!row.delivery_date) return null;
+  const now = asOf || new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const delivery = new Date(row.delivery_date);
+  const deliveryDay = new Date(delivery.getFullYear(), delivery.getMonth(), delivery.getDate());
+  const daysUntil = Math.round((deliveryDay - today) / 86400000);
+  if(daysUntil < 0) return 'OVERDUE';
+  if(daysUntil <= AT_RISK_DAYS) return 'AT_RISK';
+  return null;
+}
+function riskBadge(level){
+  if(level === 'OVERDUE') return `<span class="badge overdue" title="Past Delivery Date, still not received">Overdue</span>`;
+  if(level === 'AT_RISK') return `<span class="badge at-risk" title="Delivery Date within ${AT_RISK_DAYS} day(s), still not received">At Risk</span>`;
+  return '';
+}
+
 /* ======================= SUMMARY TAB ======================= */
 function pad2(n){ return String(n).padStart(2,'0'); }
 function toISODate(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
@@ -1685,7 +1726,7 @@ function renderSummary(rows){
   rows.forEach(r=>{
     const key = r.customer_group_description || 'Unspecified';
     if(!groups[key]) groups[key] = {
-      total:0, billed:0, onTime:0, cancelled:0, undelivered:0, delayed:0, open:0
+      total:0, billed:0, onTime:0, cancelled:0, undelivered:0, delayed:0, open:0, atRisk:0, overdue:0
     };
     const g = groups[key];
     g.total++;
@@ -1695,11 +1736,16 @@ function renderSummary(rows){
     else if(status==='DELAYED') g.delayed++;
     else if(status==='CANCELLED') g.cancelled++;
     else if(status==='UNDELIVERED') g.undelivered++;
-    else if(status==='OPEN') g.open++;
+    else if(status==='OPEN'){
+      g.open++;
+      const risk = computeRiskLevel(r);
+      if(risk==='AT_RISK') g.atRisk++;
+      else if(risk==='OVERDUE') g.overdue++;
+    }
   });
 
   const groupNames = Object.keys(groups).sort();
-  const totals = { total:0, billed:0, onTime:0, cancelled:0, undelivered:0, delayed:0, open:0 };
+  const totals = { total:0, billed:0, onTime:0, cancelled:0, undelivered:0, delayed:0, open:0, atRisk:0, overdue:0 };
   groupNames.forEach(k=>{
     const g = groups[k];
     Object.keys(totals).forEach(f=>totals[f]+=g[f]);
@@ -1713,11 +1759,13 @@ function renderSummary(rows){
     <div class="card accent-purple"><div class="label">Undelivered</div><div class="value">${totals.undelivered.toLocaleString()}</div></div>
     <div class="card accent-amber"><div class="label">Delivered But Delayed</div><div class="value">${totals.delayed.toLocaleString()}</div></div>
     <div class="card"><div class="label">Open Orders</div><div class="value">${totals.open.toLocaleString()}</div></div>
+    <div class="card accent-amber"><div class="label">At Risk (due ≤${AT_RISK_DAYS}d)</div><div class="value">${totals.atRisk.toLocaleString()}</div></div>
+    <div class="card accent-red"><div class="label">Overdue</div><div class="value">${totals.overdue.toLocaleString()}</div></div>
   `;
 
   const tbody = document.querySelector('#summaryTable tbody');
   if(!groupNames.length){
-    tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">📊</div>No data yet. Import and save orders first.</div></td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="icon">📊</div>No data yet. Import and save orders first.</div></td></tr>`;
     syncTableTopScroll('summaryTable');
     return;
   }
@@ -1732,6 +1780,8 @@ function renderSummary(rows){
       <td>${g.undelivered.toLocaleString()}</td>
       <td>${g.delayed.toLocaleString()}</td>
       <td>${g.open.toLocaleString()}</td>
+      <td>${g.atRisk.toLocaleString()}</td>
+      <td>${g.overdue.toLocaleString()}</td>
     </tr>`;
   }).join('') + `<tr style="font-weight:700;background:var(--thead-bg);">
       <td>Grand Total</td>
@@ -1742,6 +1792,8 @@ function renderSummary(rows){
       <td>${totals.undelivered.toLocaleString()}</td>
       <td>${totals.delayed.toLocaleString()}</td>
       <td>${totals.open.toLocaleString()}</td>
+      <td>${totals.atRisk.toLocaleString()}</td>
+      <td>${totals.overdue.toLocaleString()}</td>
     </tr>`;
   syncTableTopScroll('summaryTable');
 }
@@ -1869,7 +1921,7 @@ function anaDelayDays(row){
 }
 
 function computeAnalyticsAggregates(rows){
-  const cards = { total:0, onTime:0, delayed:0, cancelled:0, undelivered:0, open:0, billed:0 };
+  const cards = { total:0, onTime:0, delayed:0, cancelled:0, undelivered:0, open:0, atRisk:0, overdue:0, billed:0 };
   const monthly = {}; // key -> {onTime,delayed,cancelled,undelivered,open}
   const byAm = {};    // am name -> stats
   const byCustomer = {}; // customer -> stats
@@ -1886,7 +1938,12 @@ function computeAnalyticsAggregates(rows){
     else if(status==='DELAYED') cards.delayed++;
     else if(status==='CANCELLED') cards.cancelled++;
     else if(status==='UNDELIVERED') cards.undelivered++;
-    else cards.open++;
+    else{
+      cards.open++;
+      const risk = computeRiskLevel(r);
+      if(risk==='AT_RISK') cards.atRisk++;
+      else if(risk==='OVERDUE') cards.overdue++;
+    }
 
     const mk = anaMonthKey(r.delivery_date);
     if(mk){
@@ -1899,13 +1956,18 @@ function computeAnalyticsAggregates(rows){
     }
 
     const am = r.am_sales_name || '(Unassigned)';
-    if(!byAm[am]) byAm[am] = { am_sales_name:am, total:0, onTime:0, delayed:0, cancelled:0, undelivered:0, open:0 };
+    if(!byAm[am]) byAm[am] = { am_sales_name:am, total:0, onTime:0, delayed:0, cancelled:0, undelivered:0, open:0, atRisk:0, overdue:0 };
     byAm[am].total++;
     if(status==='ON_TIME') byAm[am].onTime++;
     else if(status==='DELAYED') byAm[am].delayed++;
     else if(status==='CANCELLED') byAm[am].cancelled++;
     else if(status==='UNDELIVERED') byAm[am].undelivered++;
-    else byAm[am].open++;
+    else{
+      byAm[am].open++;
+      const risk = computeRiskLevel(r);
+      if(risk==='AT_RISK') byAm[am].atRisk++;
+      else if(risk==='OVERDUE') byAm[am].overdue++;
+    }
 
     const custKey = r.customer_name || r.customer || '(Unknown)';
     if(!byCustomer[custKey]) byCustomer[custKey] = { customer_name:custKey, total:0, billed:0, cancelled:0, delayed:0, undelivered:0 };
@@ -1991,6 +2053,8 @@ function renderAnalytics(rows){
     <div class="card accent-red"><div class="label">Cancelled</div><div class="value">${a.cards.cancelled.toLocaleString()}</div></div>
     <div class="card accent-purple"><div class="label">Undelivered</div><div class="value">${a.cards.undelivered.toLocaleString()}</div></div>
     <div class="card"><div class="label">Open Orders</div><div class="value">${a.cards.open.toLocaleString()}</div></div>
+    <div class="card accent-amber"><div class="label">At Risk (due ≤${AT_RISK_DAYS}d)</div><div class="value">${a.cards.atRisk.toLocaleString()}</div></div>
+    <div class="card accent-red"><div class="label">Overdue</div><div class="value">${a.cards.overdue.toLocaleString()}</div></div>
   `;
 
   try{
@@ -2127,6 +2191,8 @@ const anaAmTableCtl = createReportTable('anaAmTable', [
   { key:'cancelled', label:'Cancelled', numeric:true },
   { key:'undelivered', label:'Undelivered', numeric:true },
   { key:'open', label:'Open', numeric:true },
+  { key:'atRisk', label:'At Risk', numeric:true },
+  { key:'overdue', label:'Overdue', numeric:true },
   { key:'onTimeRate', label:'On-Time Rate', numeric:true, format:fmtPct }
 ]);
 
@@ -2169,14 +2235,14 @@ document.getElementById('anaExportBtn').addEventListener('click', ()=>{
     'Sales document': r.sales_document, 'Customer': r.customer, 'Customer Name': r.customer_name,
     'Customer Group': r.customer_group_description, 'AM Sales Name': r.am_sales_name,
     'Delivery Date': r.delivery_date, 'Received Date': r.received_date,
-    'Status': computeStatus(r), 'P.O Remarks': r.po_remarks, 'Reason for Rejection': r.reason_rejection,
+    'Status': computeStatus(r), 'Risk': computeRiskLevel(r) || '', 'P.O Remarks': r.po_remarks, 'Reason for Rejection': r.reason_rejection,
     'Remarks': r.remarks, 'Billed Amount': r.billed_amount
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rawSheet), 'Raw Data');
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.byAmArr.map(x=>({
     'AM Sales Name':x.am_sales_name, 'Total Orders':x.total, 'On Time':x.onTime, 'Delayed':x.delayed,
-    'Cancelled':x.cancelled, 'Undelivered':x.undelivered, 'Open':x.open, 'On-Time Rate %': x.onTimeRate==null?'':x.onTimeRate.toFixed(1)
+    'Cancelled':x.cancelled, 'Undelivered':x.undelivered, 'Open':x.open, 'At Risk':x.atRisk, 'Overdue':x.overdue, 'On-Time Rate %': x.onTimeRate==null?'':x.onTimeRate.toFixed(1)
   }))), 'By AM');
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(a.topCustomers.map(x=>({
@@ -2222,4 +2288,4 @@ function escapeHtml(str){
 function escapeAttr(str){ return escapeHtml(str); }
 </script>
 </body>
-</html>
+</html>s
