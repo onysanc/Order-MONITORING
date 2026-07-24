@@ -2008,9 +2008,11 @@ function computeStatus(row){
     if(delivery && received > delivery) return 'DELAYED';
     return 'ON_TIME';
   }
-  // No received date yet: only counts as Undelivered if explicitly flagged via P.O Remarks.
-  // Otherwise it stays an Open Order regardless of whether the delivery date has passed,
-  // since a past-due delivery date alone doesn't confirm the order failed to deliver.
+  // No Received Date on file: fall back to whatever was explicitly picked in the OBD
+  // Status dropdown, so orders marked "Delivered On Time" / "Delivered But Delayed"
+  // still get counted even when Received Date itself wasn't also filled in.
+  if(remarks === 'delivered on time') return 'ON_TIME';
+  if(remarks === 'delivered but delayed') return 'DELAYED';
   if(remarks === 'undelivered') return 'UNDELIVERED';
   return 'OPEN';
 }
