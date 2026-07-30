@@ -478,6 +478,11 @@
         </div>
       </div>
 
+      <div class="panel hidden" id="sumPlantPillsPanel" style="margin-bottom:18px;padding:0;border:none;">
+        <label style="margin-bottom:8px;">Filter by Plant</label>
+        <div id="sumPlantPills" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+
       <div id="summaryMsg"></div>
       <div class="summary-cards" id="summaryCards"></div>
       <div class="table-scroll-top" id="summaryTableScrollTop"><div class="table-scroll-top-inner"></div></div>
@@ -1938,6 +1943,32 @@ document.querySelectorAll('button[data-period]').forEach(btn=>{
   btn.addEventListener('click', ()=>applyPeriodPreset(btn.dataset.period));
 });
 
+let sumRows = [];
+let sumSelectedPlant = null; // null = All Plants
+
+function getSumFilteredRows(){
+  if(!sumSelectedPlant) return sumRows;
+  return sumRows.filter(r=>(r.plant || '(Unspecified)') === sumSelectedPlant);
+}
+
+function buildSumPlantPills(){
+  const panel = document.getElementById('sumPlantPillsPanel');
+  const wrap = document.getElementById('sumPlantPills');
+  if(!sumRows.length){ panel.classList.add('hidden'); wrap.innerHTML=''; return; }
+  const names = Array.from(new Set(sumRows.map(r=>r.plant || '(Unspecified)'))).sort((a,b)=>a.localeCompare(b));
+  panel.classList.remove('hidden');
+  wrap.innerHTML = `<button class="pill-btn${sumSelectedPlant===null?' active':''}" data-plant="">All Plants</button>` +
+    names.map(n=>`<button class="pill-btn${sumSelectedPlant===n?' active':''}" data-plant="${escapeAttr(n)}">${escapeHtml(n)}</button>`).join('');
+  wrap.querySelectorAll('button[data-plant]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      sumSelectedPlant = btn.dataset.plant || null;
+      wrap.querySelectorAll('button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      renderSummary(getSumFilteredRows());
+    });
+  });
+}
+
 async function loadSummary(){
   const msg = document.getElementById('summaryMsg');
   const dateFrom = document.getElementById('sumDateFrom').value;
@@ -1947,6 +1978,9 @@ async function loadSummary(){
     msg.innerHTML = `<div class="msg info">Select both a "Requested Deliv.Date From" and "Requested Deliv.Date To" (or click a quick period button), then click Search.</div>`;
     document.getElementById('summaryCards').innerHTML = '';
     document.querySelector('#summaryTable tbody').innerHTML = '';
+    sumRows = [];
+    sumSelectedPlant = null;
+    buildSumPlantPills();
     return;
   }
   if(dateFrom > dateTo){
@@ -1963,7 +1997,10 @@ async function loadSummary(){
   try{
     const data = await fetchAllRows(null, null, { gte:['delivery_date', dateFrom], lte:['delivery_date', dateTo] });
     msg.innerHTML = `<div class="msg ok">Showing ${data.length} order(s) for ${dateFrom} to ${dateTo}.</div>`;
-    renderSummary(data || []);
+    sumRows = data || [];
+    sumSelectedPlant = null;
+    buildSumPlantPills();
+    renderSummary(getSumFilteredRows());
   }catch(err){
     msg.innerHTML = `<div class="msg err">Could not load summary: ${escapeHtml(err.message||String(err))}</div>`;
   }
