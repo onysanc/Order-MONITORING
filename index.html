@@ -158,6 +158,7 @@
   .badge.cancelled{background:#FBE9E7;color:var(--red);}
   .badge.undelivered{background:#F1E7FB;color:#7A4FBF;}
   .badge.open{background:#E9EEF7;color:var(--navy);}
+  .badge.other{background:var(--pill-bg);color:var(--slate);}
   .badge.at-risk{background:#FBF0DE;color:var(--amber);}
   .badge.overdue{background:#FBE9E7;color:var(--red);}
 
@@ -643,7 +644,7 @@
   </section>
 
   <footer class="note">
-    Status logic — <b>Cancelled</b>: OBD Status = "Cancelled". <b>Delivered On Time</b>: has a Received Date on or before Requested Deliv.Date. <b>Delivered But Delayed</b>: Received Date after Requested Deliv.Date. <b>Undelivered</b>: no Received Date and OBD Status = "Undelivered" (explicitly flagged). <b>Open Orders</b>: no Received Date and not flagged as Cancelled or Undelivered — regardless of whether the Requested Deliv.Date has passed.
+    Status logic — <b>Open Orders</b>: OBD Status is blank — takes priority over everything else, even a filled-in Received Date. <b>Cancelled</b>: OBD Status = "Cancelled". <b>Delivered On Time</b>: OBD Status is not blank, has a Received Date on or before Requested Deliv.Date. <b>Delivered But Delayed</b>: OBD Status is not blank, Received Date after Requested Deliv.Date. <b>Undelivered</b>: OBD Status = "Undelivered" (explicitly flagged), no Received Date. Rows with some other non-blank OBD Status and no Received Date fall outside these buckets ("Other").
   </footer>
 
 </main>
@@ -1857,25 +1858,28 @@ document.getElementById('bulkSaveBtn').addEventListener('click', async ()=>{
 /* ======================= STATUS LOGIC ======================= */
 function computeStatus(row){
   const remarks = (row.po_remarks||'').trim().toLowerCase();
+  // Open Order is now determined strictly by a blank OBD Status — takes priority
+  // over everything else, even if a Received Date happens to be filled in.
+  if(!remarks) return 'OPEN';
   if(remarks === 'cancelled') return 'CANCELLED';
+  if(remarks === 'undelivered') return 'UNDELIVERED';
   const delivery = row.delivery_date ? new Date(row.delivery_date) : null;
   const received = row.received_date ? new Date(row.received_date) : null;
   if(received){
     if(delivery && received > delivery) return 'DELAYED';
     return 'ON_TIME';
   }
-  // No received date yet: only counts as Undelivered if explicitly flagged via P.O Remarks.
-  // Otherwise it stays an Open Order regardless of whether the delivery date has passed,
-  // since a past-due delivery date alone doesn't confirm the order failed to deliver.
-  if(remarks === 'undelivered') return 'UNDELIVERED';
-  return 'OPEN';
+  // OBD Status has some other value (e.g. "For Rescheduling") but no Received Date yet.
+  // Not Open (OBD Status isn't blank) and not resolved — falls outside the tracked buckets.
+  return 'OTHER';
 }
 const STATUS_LABEL_MAP = {
   ON_TIME: ['on-time','Delivered On Time'],
   DELAYED: ['delayed','Delivered But Delayed'],
   CANCELLED: ['cancelled','Cancelled'],
   UNDELIVERED: ['undelivered','Undelivered'],
-  OPEN: ['open','Open Order']
+  OPEN: ['open','Open Order'],
+  OTHER: ['other','Other']
 };
 function statusLabel(status){
   return STATUS_LABEL_MAP[status] ? STATUS_LABEL_MAP[status][1] : '';
